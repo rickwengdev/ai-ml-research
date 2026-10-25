@@ -1,0 +1,53 @@
+2026-10-26 01:44:30,112 HTTP Request: GET https://huggingface.co/api/models/mlx-community/Qwen3.5-4B-MLX-4bit/revision/main "HTTP/1.1 200 OK"
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 3855.06it/s]
+2026-10-26 01:44:31,901 mlx-community/Qwen3.5-4B-MLX-4bit: 32 decoder layers, steered band 9–24
+2026-10-26 01:44:47,955 nuisance axis language  found
+2026-10-26 01:45:00,387 nuisance axis length    found
+2026-10-26 01:45:10,910 nuisance axis emoji     found
+2026-10-26 01:45:23,872 nuisance axis romance   found
+2026-10-26 01:45:38,453 energy     reach over the band: +12.1σ / −11.4σ
+2026-10-26 01:45:38,453 energy     能量  scale 0.167  separation 24.1σ  nuisance removed language:1% length:23% emoji:2% romance:1%
+2026-10-26 01:45:53,046 warmth     reach over the band: +8.8σ / −9.9σ
+2026-10-26 01:45:53,046 warmth     溫度  scale 0.213  separation 18.2σ  nuisance removed language:3% length:4% emoji:14% romance:14%
+2026-10-26 01:46:07,495 guard      reach over the band: +14.1σ / −4.1σ
+2026-10-26 01:46:07,495 guard      戒備  scale 0.172  separation 18.2σ  nuisance removed language:1% length:1% emoji:2% romance:2%
+2026-10-26 01:46:22,408 focus      reach over the band: +9.2σ / −9.8σ
+2026-10-26 01:46:22,408 focus      專注  scale 0.192  separation 18.9σ  nuisance removed language:3% length:4% emoji:5% romance:3%
+2026-10-26 01:46:36,761 play       reach over the band: +8.5σ / −5.4σ
+2026-10-26 01:46:36,761 play       玩心  scale 0.275  separation 12.4σ  nuisance removed language:1% length:1% emoji:15% romance:11%
+2026-10-26 01:46:51,111 patience   reach over the band: +5.1σ / −16.2σ
+2026-10-26 01:46:51,111 patience   耐心  scale 0.179  separation 24.1σ  nuisance removed language:1% length:1% emoji:1% romance:1%
+2026-10-26 01:47:05,120 initiative reach over the band: +2.1σ / −11.5σ
+2026-10-26 01:47:05,120 initiative 主動  scale 0.220  separation 14.1σ  nuisance removed language:1% length:2% emoji:1% romance:1%
+2026-10-26 01:47:20,674 closeness  reach over the band: +3.9σ / −15.7σ
+2026-10-26 01:47:20,675 closeness  親近  scale 0.170  separation 20.4σ  nuisance removed language:2% length:1% emoji:4% romance:5%
+2026-10-26 01:47:20,682 written ./steering/vectors/qwen3.5-4b-mlx-4bit.npz and ./steering/vectors/qwen3.5-4b-mlx-4bit.report.md
+# Control vectors for mlx-community/Qwen3.5-4B-MLX-4bit
+
+32 decoder layers, hidden size 2560, steered band layers 9–24. 20 neutral prompts per pole.
+
+| leaning | scale (1σ of neutral activity) | separation of the poles | reach +/− (band median) | share that was language/length/emoji/romance (removed) | reading |
+|---|---|---|---|---|---|
+| energy 能量 | 0.167 | 24.1σ | +24.8σ / −14.2σ | 1%/23%/2%/1% | clean axis |
+| warmth 溫度 | 0.213 | 18.2σ | +10.0σ / −15.8σ | 3%/4%/14%/14% | clean axis |
+| guard 戒備 | 0.172 | 18.2σ | +23.7σ / −6.2σ | 1%/1%/2%/2% | clean axis |
+| focus 專注 | 0.192 | 18.9σ | +14.6σ / −18.9σ | 3%/4%/5%/3% | clean axis |
+| play 玩心 | 0.275 | 12.4σ | +11.5σ / −9.5σ | 1%/1%/15%/11% | clean axis |
+| patience 耐心 | 0.179 | 24.1σ | +11.4σ / −25.6σ | 1%/1%/1%/1% | clean axis |
+| initiative 主動 | 0.220 | 14.1σ | +4.6σ / −20.5σ | 1%/2%/1%/1% | clean axis |
+| closeness 親近 | 0.170 | 20.4σ | +8.2σ / −37.2σ | 2%/1%/4%/5% | clean axis |
+
+## Overlap between leanings (cosine, band mean)
+
+| | energy | warmth | guard | focus | play | patience | initiative | closeness |
+|---|---|---|---|---|---|---|---|---|
+| energy | +1.00 | +0.10 | +0.07 | +0.01 | +0.15 | -0.09 | +0.35 | +0.17 |
+| warmth | +0.10 | +1.00 | -0.38 | -0.04 | +0.12 | +0.21 | +0.16 | +0.04 |
+| guard | +0.07 | -0.38 | +1.00 | -0.01 | -0.00 | **-0.57** | +0.00 | -0.03 |
+| focus | +0.01 | -0.04 | -0.01 | +1.00 | -0.45 | +0.15 | +0.12 | -0.16 |
+| play | +0.15 | +0.12 | -0.00 | -0.45 | +1.00 | -0.09 | +0.07 | +0.27 |
+| patience | -0.09 | +0.21 | **-0.57** | +0.15 | -0.09 | +1.00 | -0.06 | -0.18 |
+| initiative | +0.35 | +0.16 | +0.00 | +0.12 | +0.07 | -0.06 | +1.00 | +0.31 |
+| closeness | +0.17 | +0.04 | -0.03 | -0.16 | +0.27 | -0.18 | +0.31 | +1.00 |
+
+Pairs above 0.5 share an axis: guard & patience (-0.57).
