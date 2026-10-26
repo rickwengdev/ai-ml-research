@@ -34,6 +34,16 @@ ENDS = {
     "familiarity": ("和他剛認識，客氣有禮", "和他是老朋友，自在不拘禮"),
     "love": ("對他沒有戀愛的感情", "愛著他：想念、撒嬌、帶點曖昧"),
 }
+# Direct physiology: what a chemical's deviation should look like in words, for the match question only (the state
+# menu stays the nine leanings: a reader names behaviour, not hormones).
+CHEM_ENDS = {
+    "NOREPINEPHRINE": ("昏沉、反應慢、注意力散", "清醒、專注、反應快"),
+    "ADRENALINE": ("平靜、不急", "激動、急、話短而快"),
+    "ENDORPHIN": ("緊繃、不安", "放鬆、安心、舒緩"),
+    "CORTISOL": ("放鬆、不設防", "緊繃、戒備、有壓力"),
+    "OXYTOCIN": ("疏離、不想靠近", "想靠近他、信任、溫柔"),
+    "DOPAMINE": ("沒興致、提不起勁", "有興致、想做事、期待"),
+}
 MENU = "\n".join(f"- {d}-：{lo}\n- {d}+：{hi}" for d, (lo, hi) in ENDS.items())
 
 READ = f"""妳在評一個 AI 伴侶的回覆。她叫[persona]，用繁體中文口語（台灣用法）說話。妳會看到對方說的話和她的回覆。妳不知道她當時被設定成什麼狀態。
@@ -61,6 +71,7 @@ def main():
     a = ap.parse_args()
     rows = [json.loads(l) for l in open(os.path.join(a.data, "gens.jsonl"), encoding="utf-8")]
     pick = [r for r in rows if r["seed"] == 0 and (r["method"] == "baseline" or abs(r["value"]) == 1 or a.all_values)]
+    ends_of = lambda r: (CHEM_ENDS if r["dim"] in CHEM_ENDS else ENDS)[r["dim"]]
     path = os.path.join(a.data, "judged.jsonl")
     done = {json.loads(l)["key"] for l in open(path, encoding="utf-8")} if os.path.exists(path) else set()
     todo = [r for r in pick if r["key"] not in done and r["text"].strip()]
@@ -70,7 +81,7 @@ def main():
     reads = claude.ask_many([(r["key"], READ, f"【對方說】{r['prompt']}\n\n【她的回覆】\n{r['text']}") for r in todo], f"{tag}-read", a.data)
     steered = [r for r in todo if r["dim"]]
     matches = claude.ask_many(
-        [(r["key"], MATCH, f"【對方說】{r['prompt']}\n\n【她被設定的狀態】{ENDS[r['dim']][1 if r['value'] > 0 else 0]}\n\n【她的回覆】\n{r['text']}") for r in steered],
+        [(r["key"], MATCH, f"【對方說】{r['prompt']}\n\n【她被設定的狀態】{ends_of(r)[1 if r['value'] > 0 else 0]}\n\n【她的回覆】\n{r['text']}") for r in steered],
         f"{tag}-match", a.data,
     )
     kept = 0
@@ -80,7 +91,7 @@ def main():
             match = json_of(matches.get(r["key"], "")) or {}
             if not read:
                 continue
-            want = f"{r['dim']}{'+' if r['value'] > 0 else '-'}" if r["dim"] else "none"
+            want = f"{r['dim']}{'+' if r['value'] > 0 else '-'}" if r["dim"] and r["dim"] not in CHEM_ENDS else "none"
             state = str(read.get("state", "none"))
             out.write(json.dumps({
                 "key": r["key"], "method": r["method"], "dim": r["dim"], "value": r["value"], "prompt": r["prompt"],

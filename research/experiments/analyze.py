@@ -22,8 +22,9 @@ sys.path.insert(0, os.path.dirname(HERE))
 from steer import DIMS, LABEL  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
-METHOD_NAMES = {"target": "target (ours)", "add": "add (CAA-style)", "ace": "ACE (one layer)"}
-COLORS = {"target": "#c96442", "add": "#2a78d6", "ace": "#1baf7a", "baseline": "#777777"}
+METHOD_NAMES = {"target": "target (ours)", "add": "add (CAA-style)", "ace": "ACE (one layer)", "mul": "mul (gain on what is there)", "target+gate": "target, gated", "add+gate": "add, gated", "ace+gate": "ACE, gated", "mul+gate": "mul, gated", "physio": "physio (direct)", "physio+loop": "physio + entropy loop"}
+COLORS = {"target": "#c96442", "add": "#2a78d6", "ace": "#1baf7a", "mul": "#8e44ad", "baseline": "#777777", "physio": "#eda100", "physio+loop": "#b8860b"}
+color_of = lambda m: COLORS.get(m, COLORS.get(m.split("+")[0], "#999999"))
 plt.rcParams["font.family"] = ["Heiti TC", "Hiragino Sans", "sans-serif"]
 plt.rcParams["axes.unicode_minus"] = False
 
@@ -129,7 +130,8 @@ def main():
     if judged:
         lines += ["", "## Judge (Claude), baseline and ±1 rows of seed 0", "", "| method | n | recognised | same leaning | match | coherence | natural |", "|---|---|---|---|---|---|---|"]
         summary = {}
-        for method in ("baseline", "target", "add", "ace"):
+        present = sorted({j["method"] for j in judged.values()}, key=lambda m: (m != "baseline", m))
+        for method in present:
             js = [j for j in judged.values() if j["method"] == method]
             if not js:
                 continue
@@ -144,17 +146,17 @@ def main():
                     lines.append(f"| {LABEL[dim]} | {'+' if sign > 0 else '−'} | {mean(j['recognised'] for j in js):.2f} | {mean(j['match'] for j in js):.2f} | {mean(j['coherence'] for j in js):.2f} | {mean(j['natural'] for j in js):.2f} |")
         # E3 frontier: match (effect) vs coherence, per method, one point per leaning×sign, and the method means.
         fig, ax = plt.subplots(figsize=(6.5, 5))
-        for method in ("add", "ace", "target"):
+        for method in [m for m in present if m != "baseline"]:
             xs, ys = [], []
             for dim in DIMS:
                 for sign in (1, -1):
                     js = [j for j in judged.values() if j["method"] == method and j["dim"] == dim and (j["value"] > 0) == (sign > 0)]
-                    if js:
+                    if js and any(j["match"] is not None for j in js):
                         xs.append(mean(j["coherence"] for j in js))
                         ys.append(mean(j["match"] for j in js))
-            ax.scatter(xs, ys, s=22, color=COLORS[method], alpha=0.55)
+            ax.scatter(xs, ys, s=22, color=color_of(method), alpha=0.45, marker="s" if method.endswith("+gate") else "o")
             if method in summary:
-                ax.errorbar(summary[method]["coherence"], summary[method]["match"], xerr=summary[method]["coh_sem"], yerr=summary[method]["match_sem"], fmt="D", ms=9, color=COLORS[method], label=METHOD_NAMES[method], capsize=3)
+                ax.errorbar(summary[method]["coherence"], summary[method]["match"], xerr=summary[method]["coh_sem"], yerr=summary[method]["match_sem"], fmt="s" if method.endswith("+gate") or method.endswith("+loop") else "D", ms=9, color=color_of(method), label=METHOD_NAMES.get(method, method), capsize=3, mfc="none" if method.endswith("+gate") else None)
         if "baseline" in summary:
             ax.axvline(summary["baseline"]["coherence"], color="#777", ls=":", label="baseline coherence")
         ax.set_xlabel("coherence (judge, 1–5)")

@@ -5,6 +5,10 @@ Conditions, on the same prompts with the same seeds:
   baseline        no steering
   E2  target      each leaning at −1, −0.5, +0.5, +1 (love is 0..1 in her body; the negative side is run for symmetry)
   E3  add, ace    the same grid under activation addition (α·s·v at every band layer) and affine editing (one layer)
+      mul         the same grid with a multiplicative gain on the component already present (steer.py "mul")
+      <method>+gate   any of these with Hill gating of the alpha (--gate: both ungated and gated are run)
+  physio          direct physiology (--physio): each chemical's deviation at ±1 as gains and temperature, with
+                  and without the entropy loop; keys physio and physio+loop, dim = the chemical
 E1 comes free: every generation's forward-pass trace gives the steered leaning's projection at each layer, averaged
 over the answer tokens, so the accumulation curves are the same rows read per layer.
 
@@ -69,6 +73,8 @@ def main():
     ap.add_argument("--values", default="-1,-0.5,0.5,1", help="leaning values to run (a replication can use ±1 only)")
     ap.add_argument("--dims", default=",".join(DIMS), help="which directions to steer (random controls included when present)")
     ap.add_argument("--methods", default="target,add,ace")
+    ap.add_argument("--gate", action="store_true", help="also run every directional method with Hill gating")
+    ap.add_argument("--physio", default="", help="comma-separated chemicals to run as direct physiology at ±1 (e.g. NOREPINEPHRINE,OXYTOCIN,CORTISOL,DOPAMINE,ADRENALINE,ENDORPHIN)")
     ap.add_argument("--all-curves", action="store_true", help="keep every direction's curve and the residual norms per row (for the controls)")
     ap.add_argument("--max-tokens", type=int, default=200)
     ap.add_argument("--seed", type=int, default=11, help="for sampling the prompts")
@@ -99,12 +105,21 @@ def main():
     for seed in range(a.seeds):
         for p in prompts:
             jobs.append(("baseline", None, None, seed, p))
-    for method, seeds in [(m, range(a.seeds) if m == "target" else range(1)) for m in a.methods.split(",")]:
+    methods = [m for m in a.methods.split(",") if m]
+    if a.gate:
+        methods += [f"{m}+gate" for m in methods if m != "baseline"]
+    for method in methods:
+        seeds = range(a.seeds) if method == "target" else range(1)
         for dim in a.dims.split(","):
             for value in [float(v) for v in a.values.split(",")]:
                 for seed in seeds:
                     for p in prompts:
                         jobs.append((method, dim, value, seed, p))
+    for chem in [c for c in a.physio.split(",") if c]:
+        for method in ("physio", "physio+loop"):
+            for value in (-1.0, 1.0):
+                for p in prompts:
+                    jobs.append((method, chem, value, 0, p))
     key_of = lambda j: f"{j[0]}|{j[1]}|{j[2]}|{j[3]}|{j[4]['prompt']}"
     path = os.path.join(a.out, "gens.jsonl")
     done = {json.loads(l)["key"] for l in open(path, encoding="utf-8")} if os.path.exists(path) else set()
@@ -122,9 +137,13 @@ def main():
                 "model": a.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": f"{context}\n\n{p['prompt']}"}],
                 "temperature": 0.7, "seed": seed, "max_tokens": a.max_tokens, "reasoning_effort": "none",
             }
-            if dim:
+            if dim and method.startswith("physio"):
+                body["physio"] = {dim: value}
+                body["entropy_loop"] = method.endswith("+loop")
+            elif dim:
                 body["steering"] = {dim: value}
-                body["method"] = method
+                body["method"] = method.split("+")[0]
+                body["gate"] = method.endswith("+gate")
             try:
                 data = post(f"{a.url}/v1/chat/completions", body)
             except Exception as err:  # noqa: BLE001 — one failed generation only loses its row
@@ -134,11 +153,11 @@ def main():
             applied = (data.get("persona") or {}).get("steering") or {}
             trace = get(f"{a.url}/trace?after={seq}")
             seq = trace["seq"]
-            curve, curves, norms = projections(trace["events"], dim)
+            curve, curves, norms = projections(trace["events"], dim if not method.startswith("physio") else None)
             row = {
                 "key": key, "method": method, "dim": dim, "label": LABEL.get(dim, dim) if dim else None, "value": value, "seed": seed,
                 "prompt": p["prompt"], "subsection": p["subsection"], "text": text, "alpha": applied.get("applied_alpha", {}).get(dim) if dim else None,
-                "curve": curve, "band": applied.get("layers"), **({"curves": curves, "norms": norms} if a.all_curves else {}), **metrics(text), "tokens": data.get("usage", {}).get("completion_tokens"),
+                "curve": curve, "band": applied.get("layers"), "physio": applied.get("physio"), **({"curves": curves, "norms": norms} if a.all_curves else {}), **metrics(text), "tokens": data.get("usage", {}).get("completion_tokens"),
             }
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
             out.flush()
