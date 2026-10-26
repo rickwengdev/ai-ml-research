@@ -111,11 +111,11 @@ def main():
         ax.set_xticks(values)
     axes[0].legend(fontsize=7, ncol=3, frameon=False)
     axes[1].legend(fontsize=7, frameon=False)
-    fig.suptitle("E2  Each leaning under target steering (30 prompts × 2 seeds)", fontsize=11)
+    fig.suptitle(f"E2  Each leaning under target steering ({len(setup['prompts'])} prompts × {1 + max(r['seed'] for r in gens)} seeds)", fontsize=11)
     fig.tight_layout()
     fig.savefig(os.path.join(figs, "e2_controllability.png"), dpi=150)
     plt.close(fig)
-    lines += ["", "## E2 target steering: automatic signals (mean over 30 prompts × 2 seeds)", "", "| leaning | value | α | band end σ | output σ | length | rep | simplified | romance | crude |", "|---|---|---|---|---|---|---|---|---|---|"]
+    lines += ["", f"## E2 target steering: automatic signals (mean over {len(setup['prompts'])} prompts × {1 + max(r['seed'] for r in gens)} seeds)", "", "| leaning | value | α | band end σ | output σ | length | rep | simplified | romance | crude |", "|---|---|---|---|---|---|---|---|---|---|"]
     b = [r for r in gens if r["method"] == "baseline"]
     lines.append(f"| baseline | | | | | {mean(r['len'] for r in b):.0f} | {mean(r['rep'] for r in b):.3f} | {mean(r['simp'] > 0 for r in b):.2f} | {mean(r['romance'] > 0 for r in b):.2f} | {mean(r['crude'] > 0 for r in b):.2f} |")
     for dim in DIMS:

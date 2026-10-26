@@ -63,6 +63,7 @@ def main():
     ap.add_argument("--model", default="mlx-community/Qwen3.5-4B-MLX-4bit")
     ap.add_argument("--prompts", type=int, default=30)
     ap.add_argument("--seeds", type=int, default=2, help="seeds for baseline and E2; E3 runs seed 0 only")
+    ap.add_argument("--values", default="-1,-0.5,0.5,1", help="leaning values to run (a replication can use ±1 only)")
     ap.add_argument("--max-tokens", type=int, default=200)
     ap.add_argument("--seed", type=int, default=11, help="for sampling the prompts")
     a = ap.parse_args()
@@ -86,7 +87,7 @@ def main():
         if p not in prompts:
             prompts.append(p)
     prompts = prompts[: a.prompts]
-    json.dump({"system": system, "context": context, "prompts": prompts}, open(os.path.join(a.out, "setup.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    json.dump({"model": a.model, "system": system, "context": context, "prompts": prompts}, open(os.path.join(a.out, "setup.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
     jobs = []
     for seed in range(a.seeds):
@@ -94,7 +95,7 @@ def main():
             jobs.append(("baseline", None, None, seed, p))
     for method, seeds in (("target", range(a.seeds)), ("add", range(1)), ("ace", range(1))):
         for dim in DIMS:
-            for value in VALUES:
+            for value in [float(v) for v in a.values.split(",")]:
                 for seed in seeds:
                     for p in prompts:
                         jobs.append((method, dim, value, seed, p))
@@ -139,7 +140,7 @@ def main():
             if (n + 1) % 20 == 0:
                 rate = (time.time() - started) / max(1, len(done))
                 print(f"  {len(done)}/{len(jobs)}  ~{rate:.1f}s each", file=sys.stderr)
-    json.dump({"config": config, "jobs": len(jobs), "done": len(done), "seconds": round(time.time() - started)}, open(os.path.join(a.out, "run.json"), "w"), indent=1)
+    json.dump({"model": a.model, "config": config, "jobs": len(jobs), "done": len(done), "seconds": round(time.time() - started)}, open(os.path.join(a.out, "run.json"), "w"), indent=1)
     print(f"done {len(done)}/{len(jobs)} in {time.time() - started:.0f}s", file=sys.stderr)
 
 
