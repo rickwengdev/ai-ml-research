@@ -45,15 +45,18 @@ def metrics(text):
 
 
 def projections(trace_events, dim):
-    """The steered leaning's mean projection over the answer tokens at every layer, from the trace since `after`."""
+    """The steered leaning's mean projection over the answer tokens at every layer, every leaning's, and the residual
+    norm per layer, from the trace since `after`: (curve, curves, norms)."""
     begin = next((e for e in trace_events if e["type"] == "begin"), None)
-    if not begin or dim not in (begin.get("dims") or []):
-        return None
-    k = begin["dims"].index(dim) + 1
+    if not begin or not begin.get("dims"):
+        return None, None, None
     rows = [e["rows"] for e in trace_events if e["type"] == "token" and e.get("request") == begin["request"] and not e.get("thinking") and not e.get("muted")]
     if not rows:
-        return None
-    return [round(sum(r[l][k] for r in rows) / len(rows), 3) for l in range(len(rows[0]))]
+        return None, None, None
+    layers = len(rows[0])
+    col = lambda k: [round(sum(r[l][k] for r in rows) / len(rows), 3) for l in range(layers)]
+    curves = {d: col(k + 1) for k, d in enumerate(begin["dims"])}
+    return (curves.get(dim) if dim else None), curves, col(0)
 
 
 def main():
@@ -64,6 +67,9 @@ def main():
     ap.add_argument("--prompts", type=int, default=30)
     ap.add_argument("--seeds", type=int, default=2, help="seeds for baseline and E2; E3 runs seed 0 only")
     ap.add_argument("--values", default="-1,-0.5,0.5,1", help="leaning values to run (a replication can use ±1 only)")
+    ap.add_argument("--dims", default=",".join(DIMS), help="which directions to steer (random controls included when present)")
+    ap.add_argument("--methods", default="target,add,ace")
+    ap.add_argument("--all-curves", action="store_true", help="keep every direction's curve and the residual norms per row (for the controls)")
     ap.add_argument("--max-tokens", type=int, default=200)
     ap.add_argument("--seed", type=int, default=11, help="for sampling the prompts")
     a = ap.parse_args()
@@ -93,8 +99,8 @@ def main():
     for seed in range(a.seeds):
         for p in prompts:
             jobs.append(("baseline", None, None, seed, p))
-    for method, seeds in (("target", range(a.seeds)), ("add", range(1)), ("ace", range(1))):
-        for dim in DIMS:
+    for method, seeds in [(m, range(a.seeds) if m == "target" else range(1)) for m in a.methods.split(",")]:
+        for dim in a.dims.split(","):
             for value in [float(v) for v in a.values.split(",")]:
                 for seed in seeds:
                     for p in prompts:
@@ -128,11 +134,11 @@ def main():
             applied = (data.get("persona") or {}).get("steering") or {}
             trace = get(f"{a.url}/trace?after={seq}")
             seq = trace["seq"]
-            curve = projections(trace["events"], dim) if dim else None
+            curve, curves, norms = projections(trace["events"], dim)
             row = {
                 "key": key, "method": method, "dim": dim, "label": LABEL.get(dim, dim) if dim else None, "value": value, "seed": seed,
                 "prompt": p["prompt"], "subsection": p["subsection"], "text": text, "alpha": applied.get("applied_alpha", {}).get(dim) if dim else None,
-                "curve": curve, "band": applied.get("layers"), **metrics(text), "tokens": data.get("usage", {}).get("completion_tokens"),
+                "curve": curve, "band": applied.get("layers"), **({"curves": curves, "norms": norms} if a.all_curves else {}), **metrics(text), "tokens": data.get("usage", {}).get("completion_tokens"),
             }
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
             out.flush()
