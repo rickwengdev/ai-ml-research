@@ -12,7 +12,7 @@ For each judged row the judge is told nothing of the condition. It gets the prom
 Judged by default: baseline and the ±1 rows of seed 0 for every method (the comparison E3 needs), through Claude
 (training/claude_batch.mts, [persona]'s sign-in). Writes judged.jsonl next to gens.jsonl; resumes.
 
-usage: judge.py --data docs/research/data/<date>-e2e3 [--model sonnet] [--all-values]
+usage: judge.py --data docs/research/data/<date>-e2e3 [--model sonnet] [--all-values] [--baseline-match]
 """
 import argparse, json, os, sys
 
@@ -68,6 +68,7 @@ def main():
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--all-values", action="store_true", help="judge ±0.5 too, not only ±1")
+    ap.add_argument("--baseline-match", action="store_true", help="also judge the unsteered replies against every steered state, as match's reference")
     a = ap.parse_args()
     rows = [json.loads(l) for l in open(os.path.join(a.data, "gens.jsonl"), encoding="utf-8")]
     pick = [r for r in rows if r["seed"] == 0 and (r["method"] == "baseline" or abs(r["value"]) == 1 or a.all_values)]
@@ -100,6 +101,25 @@ def main():
             }, ensure_ascii=False) + "\n")
             kept += 1
     print(f"judged {kept}", file=sys.stderr)
+    if a.baseline_match:
+        # The reference for match: the unsteered reply to the same prompt, judged against every state a steered row
+        # was asked about. A state the default reply already shows (calm, say) scores high without any steering.
+        base = {r["prompt"]: r for r in rows if r["method"] == "baseline" and r["text"].strip()}
+        states = sorted({(r["dim"], 1 if r["value"] > 0 else -1) for r in pick if r["dim"]})
+        bpath = os.path.join(a.data, "baseline_match.jsonl")
+        bdone = {(j["prompt"], j["dim"], j["sign"]) for j in map(json.loads, open(bpath, encoding="utf-8"))} if os.path.exists(bpath) else set()
+        asks = [(f"{p}|{d}|{s}", p, d, s) for p in base for d, s in states if (p, d, s) not in bdone]
+        ends = lambda d: (CHEM_ENDS if d in CHEM_ENDS else ENDS)[d]
+        answers = claude.ask_many(
+            [(key, MATCH, f"【對方說】{p}\n\n【她被設定的狀態】{ends(d)[1 if s > 0 else 0]}\n\n【她的回覆】\n{base[p]['text']}") for key, p, d, s in asks],
+            f"{tag}-baseline-match", a.data,
+        )
+        with open(bpath, "a", encoding="utf-8") as out:
+            for key, p, d, s in asks:
+                match = (json_of(answers.get(key, "")) or {}).get("match")
+                if match is not None:
+                    out.write(json.dumps({"prompt": p, "dim": d, "sign": s, "match": match}, ensure_ascii=False) + "\n")
+        print(f"baseline match: {len(asks)} asked", file=sys.stderr)
 
 
 if __name__ == "__main__":

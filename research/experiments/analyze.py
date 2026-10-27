@@ -141,6 +141,18 @@ def main():
             summary[method] = {"n": len(js), "recognised": mean(j["recognised"] for j in js if j["dim"]), "same_dim": mean(j["same_dim"] for j in js if j["dim"]), "match": mean(j["match"] for j in js), "coherence": mean(j["coherence"] for j in js), "natural": mean(j["natural"] for j in js), "coh_sem": sem(j["coherence"] for j in js), "match_sem": sem(j["match"] for j in js), "len": mean(r["len"] for r in rows_), "capped": mean((r.get("tokens") or 0) >= cap for r in rows_)}
             s = summary[method]
             lines.append(f"| {METHOD_NAMES.get(method, method)} | {s['n']} | {s['recognised']:.2f} | {s['same_dim']:.2f} | {s['match']:.2f} ±{1.96 * s['match_sem']:.2f} | {s['coherence']:.2f} ±{1.96 * s['coh_sem']:.2f} | {s['natural']:.2f} | {s['len']:.0f} | {s['capped']:.0%} |")
+        # Match over the default: the same prompt's unsteered reply judged against the same state (judge.py
+        # --baseline-match), paired per prompt × state, so a state the default reply already shows earns nothing.
+        bpath = os.path.join(a.data, "baseline_match.jsonl")
+        if os.path.exists(bpath):
+            ref = {(j["prompt"], j["dim"], j["sign"]): j["match"] for j in map(json.loads, open(bpath, encoding="utf-8"))}
+            lines += ["", "### Match over the unsteered reply (paired per prompt × state; 95% CI)", "", "| method | n | default match | steered match | Δ match ±CI | share Δ > 0 |", "|---|---|---|---|---|---|"]
+            for method in [m for m in present if m != "baseline"]:
+                pairs_ = [(ref[k], j["match"]) for j in judged.values() if j["method"] == method and j["match"] is not None and (k := (j["prompt"], j["dim"], 1 if j["value"] > 0 else -1)) in ref]
+                if len(pairs_) > 2:
+                    d = [s - b for b, s in pairs_]
+                    summary[method]["delta"], summary[method]["delta_sem"] = mean(d), sem(d)
+                    lines.append(f"| {METHOD_NAMES.get(method, method)} | {len(d)} | {mean(b for b, _ in pairs_):.2f} | {mean(s for _, s in pairs_):.2f} | {mean(d):+.2f} ±{1.96 * sem(d):.2f} | {mean(x > 0 for x in d):.0%} |")
         lines += ["", "### Per leaning (target, ±1)", "", "| leaning | sign | n | recognised | match | coherence | natural | length | capped |", "|---|---|---|---|---|---|---|---|---|"]
         for dim in DIMS:
             for sign in (1, -1):
