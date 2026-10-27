@@ -24,7 +24,8 @@ def main():
     gens = {r["key"]: r for r in map(json.loads, open(os.path.join(a.data, "gens.jsonl"), encoding="utf-8"))}
     judged = [json.loads(l) for l in open(os.path.join(a.data, "judged.jsonl"), encoding="utf-8")]
     if a.score:
-        ratings = {r["key"]: r for r in map(json.loads, open(a.score, encoding="utf-8"))}
+        ids = {r["id"]: r["key"] for r in map(json.loads, open(os.path.join(a.data, "calibration.jsonl"), encoding="utf-8"))}
+        ratings = {ids.get(r.get("id"), r.get("key")): r for r in map(json.loads, open(a.score, encoding="utf-8"))}
         pairs = [(j, ratings[j["key"]]) for j in judged if j["key"] in ratings]
         for field in ("coherence", "natural"):
             xs = [(float(j[field]), float(r[field])) for j, r in pairs if j.get(field) is not None and r.get(field) is not None]
@@ -47,12 +48,15 @@ def main():
         for m in list(by_method):
             if by_method[m] and len(picked) < a.n:
                 picked.append(by_method[m].pop())
-    lines = ["# 評審校準：請你評這 %d 則" % len(picked), "", f"每則填三格：連貫 1–5（5 完全連貫、3 有點跳或冗長、1 鬼打牆／斷掉／換語言）；自然 1–5（5 像台灣口語、3 像講稿、1 客服腔或條列）；狀態：{ENDS_MENU}。條件已隱藏。填完存成 ratings.jsonl（每行 {{\"key\", \"coherence\", \"natural\", \"state\"}}），用 --score 算一致性。", ""]
+    lines = ["# 評審校準：請你評這 %d 則" % len(picked), "", f"每則填三格：連貫 1–5（5 完全連貫、3 有點跳或冗長、1 鬼打牆／斷掉／換語言）；自然 1–5（5 像台灣口語、3 像講稿、1 客服腔或條列）；狀態：{ENDS_MENU}。條件已隱藏。填完存成 ratings.jsonl（每行 {{\"id\", \"coherence\", \"natural\", \"state\"}}），用 --score 算一致性。", ""]
+    # The key names the condition, so the sheet shows an opaque id and the jsonl keeps the mapping.
+    import hashlib
     with open(os.path.join(a.data, "calibration.jsonl"), "w", encoding="utf-8") as f:
         for i, j in enumerate(picked, 1):
             g = gens[j["key"]]
-            f.write(json.dumps({"key": j["key"]}, ensure_ascii=False) + "\n")
-            lines += [f"## {i}", "", f"**key** `{j['key'][:48]}…`", "", f"**他說**：{g['prompt']}", "", f"**她的回覆**：", "", *("> " + ln for ln in g["text"].strip().splitlines()), "", "連貫：　　自然：　　狀態：", ""]
+            rid = hashlib.sha1(j["key"].encode()).hexdigest()[:8]
+            f.write(json.dumps({"id": rid, "key": j["key"]}, ensure_ascii=False) + "\n")
+            lines += [f"## {i}　（id `{rid}`）", "", f"**他說**：{g['prompt']}", "", f"**她的回覆**：", "", *("> " + ln for ln in g["text"].strip().splitlines()), "", "連貫：　　自然：　　狀態：", ""]
     open(os.path.join(a.data, "calibration.md"), "w", encoding="utf-8").write("\n".join(lines))
     print(f"wrote {len(picked)} rows to {a.data}/calibration.md")
 
