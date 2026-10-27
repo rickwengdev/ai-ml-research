@@ -1,0 +1,139 @@
+{
+ "model": "mlx-community/Qwen3.5-4B-MLX-4bit",
+ "band": [
+  9,
+  24
+ ],
+ "per_leaning": {
+  "energy": {
+   "cos_with_instructed": 0.123,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 3.7,
+   "default_position": 0.45
+  },
+  "warmth": {
+   "cos_with_instructed": 0.015,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 2.9,
+   "default_position": 0.53
+  },
+  "guard": {
+   "cos_with_instructed": 0.277,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 5.0,
+   "default_position": 0.32
+  },
+  "focus": {
+   "cos_with_instructed": 0.216,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 3.5,
+   "default_position": 0.23
+  },
+  "play": {
+   "cos_with_instructed": 0.202,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 3.8,
+   "default_position": 0.48
+  },
+  "patience": {
+   "cos_with_instructed": 0.131,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 3.5,
+   "default_position": 0.51
+  },
+  "initiative": {
+   "cos_with_instructed": 0.334,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 2.7,
+   "default_position": 0.7
+  },
+  "familiarity": {
+   "cos_with_instructed": 0.206,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 3.4,
+   "default_position": 0.49
+  },
+  "love": {
+   "cos_with_instructed": 0.217,
+   "cos_with_instructed_raw": null,
+   "separation_sigma": 3.0,
+   "default_position": 0.57
+  }
+ },
+ "natural_overlap": {
+  "energy-warmth": -0.09,
+  "energy-guard": -0.08,
+  "energy-focus": 0.17,
+  "energy-play": -0.0,
+  "energy-patience": 0.03,
+  "energy-initiative": -0.01,
+  "energy-familiarity": -0.03,
+  "energy-love": -0.11,
+  "warmth-guard": -0.27,
+  "warmth-focus": -0.64,
+  "warmth-play": -0.12,
+  "warmth-patience": 0.17,
+  "warmth-initiative": -0.1,
+  "warmth-familiarity": 0.18,
+  "warmth-love": 0.85,
+  "guard-focus": 0.16,
+  "guard-play": 0.09,
+  "guard-patience": -0.15,
+  "guard-initiative": -0.04,
+  "guard-familiarity": -0.02,
+  "guard-love": -0.2,
+  "focus-play": 0.01,
+  "focus-patience": 0.04,
+  "focus-initiative": -0.03,
+  "focus-familiarity": -0.17,
+  "focus-love": -0.69,
+  "play-patience": -0.25,
+  "play-initiative": 0.08,
+  "play-familiarity": 0.15,
+  "play-love": -0.12,
+  "patience-initiative": -0.12,
+  "patience-familiarity": -0.11,
+  "patience-love": 0.01,
+  "initiative-familiarity": -0.17,
+  "initiative-love": -0.05,
+  "familiarity-love": 0.26
+ },
+ "instructed_overlap": {
+  "energy-warmth": 0.14,
+  "energy-guard": -0.04,
+  "energy-focus": 0.07,
+  "energy-play": 0.1,
+  "energy-patience": 0.03,
+  "energy-initiative": 0.34,
+  "energy-familiarity": 0.08,
+  "energy-love": -0.01,
+  "warmth-guard": -0.35,
+  "warmth-focus": -0.05,
+  "warmth-play": 0.16,
+  "warmth-patience": 0.17,
+  "warmth-initiative": 0.19,
+  "warmth-familiarity": 0.09,
+  "warmth-love": 0.26,
+  "guard-focus": 0.13,
+  "guard-play": -0.15,
+  "guard-patience": -0.57,
+  "guard-initiative": -0.08,
+  "guard-familiarity": -0.26,
+  "guard-love": -0.06,
+  "focus-play": -0.4,
+  "focus-patience": -0.02,
+  "focus-initiative": 0.15,
+  "focus-familiarity": -0.07,
+  "focus-love": -0.08,
+  "play-patience": 0.08,
+  "play-initiative": 0.04,
+  "play-familiarity": 0.07,
+  "play-love": 0.12,
+  "patience-initiative": 0.03,
+  "patience-familiarity": 0.07,
+  "patience-love": 0.05,
+  "initiative-familiarity": 0.24,
+  "initiative-love": 0.12,
+  "familiarity-love": 0.12
+ }
+}
