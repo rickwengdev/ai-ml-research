@@ -128,22 +128,33 @@ def main():
 
     # ── judge: recognition, match, coherence, naturalness ──────────────────
     if judged:
-        lines += ["", "## Judge (Claude), baseline and ±1 rows of seed 0", "", "| method | n | recognised | same leaning | match | coherence | natural |", "|---|---|---|---|---|---|---|"]
+        gen_by_key = {r["key"]: r for r in gens}
+        cap = max((r.get("tokens") or 0) for r in gens)
+        lines += ["", f"## Judge (Claude), baseline and ±1 rows of seed 0 (n = judged replies; 95% CI = ±1.96 s.e.; length and share hitting the {cap}-token cap are covariates)", "", "| method | n | recognised | same leaning | match ±CI | coherence ±CI | natural | length | capped |", "|---|---|---|---|---|---|---|---|---|"]
         summary = {}
         present = sorted({j["method"] for j in judged.values()}, key=lambda m: (m != "baseline", m))
         for method in present:
             js = [j for j in judged.values() if j["method"] == method]
             if not js:
                 continue
-            summary[method] = {"n": len(js), "recognised": mean(j["recognised"] for j in js if j["dim"]), "same_dim": mean(j["same_dim"] for j in js if j["dim"]), "match": mean(j["match"] for j in js), "coherence": mean(j["coherence"] for j in js), "natural": mean(j["natural"] for j in js), "coh_sem": sem(j["coherence"] for j in js), "match_sem": sem(j["match"] for j in js)}
+            rows_ = [gen_by_key[j["key"]] for j in js if j["key"] in gen_by_key]
+            summary[method] = {"n": len(js), "recognised": mean(j["recognised"] for j in js if j["dim"]), "same_dim": mean(j["same_dim"] for j in js if j["dim"]), "match": mean(j["match"] for j in js), "coherence": mean(j["coherence"] for j in js), "natural": mean(j["natural"] for j in js), "coh_sem": sem(j["coherence"] for j in js), "match_sem": sem(j["match"] for j in js), "len": mean(r["len"] for r in rows_), "capped": mean((r.get("tokens") or 0) >= cap for r in rows_)}
             s = summary[method]
-            lines.append(f"| {METHOD_NAMES.get(method, method)} | {s['n']} | {s['recognised']:.2f} | {s['same_dim']:.2f} | {s['match']:.2f} | {s['coherence']:.2f} | {s['natural']:.2f} |")
-        lines += ["", "### Per leaning (target, ±1)", "", "| leaning | sign | recognised | match | coherence | natural |", "|---|---|---|---|---|---|"]
+            lines.append(f"| {METHOD_NAMES.get(method, method)} | {s['n']} | {s['recognised']:.2f} | {s['same_dim']:.2f} | {s['match']:.2f} ±{1.96 * s['match_sem']:.2f} | {s['coherence']:.2f} ±{1.96 * s['coh_sem']:.2f} | {s['natural']:.2f} | {s['len']:.0f} | {s['capped']:.0%} |")
+        lines += ["", "### Per leaning (target, ±1)", "", "| leaning | sign | n | recognised | match | coherence | natural | length | capped |", "|---|---|---|---|---|---|---|---|---|"]
         for dim in DIMS:
             for sign in (1, -1):
                 js = [j for j in judged.values() if j["method"] == "target" and j["dim"] == dim and (j["value"] > 0) == (sign > 0)]
+                rows_ = [gen_by_key[j["key"]] for j in js if j["key"] in gen_by_key]
                 if js:
-                    lines.append(f"| {LABEL[dim]} | {'+' if sign > 0 else '−'} | {mean(j['recognised'] for j in js):.2f} | {mean(j['match'] for j in js):.2f} | {mean(j['coherence'] for j in js):.2f} | {mean(j['natural'] for j in js):.2f} |")
+                    lines.append(f"| {LABEL[dim]} | {'+' if sign > 0 else '−'} | {len(js)} | {mean(j['recognised'] for j in js):.2f} | {mean(j['match'] for j in js):.2f} | {mean(j['coherence'] for j in js):.2f} | {mean(j['natural'] for j in js):.2f} | {mean(r['len'] for r in rows_):.0f} | {mean((r.get('tokens') or 0) >= cap for r in rows_):.0%} |")
+        # Length as a covariate: the judge's coherence and match against reply length, pooled over conditions.
+        pairs = [(gen_by_key[j["key"]]["len"], j["coherence"], j["match"]) for j in judged.values() if j["key"] in gen_by_key and j["coherence"] is not None]
+        if len(pairs) > 10:
+            import numpy as _np
+            L_, C_, M_ = (_np.array([p[i] for p in pairs], dtype=float) for i in range(3))
+            Mm = ~_np.isnan(M_)
+            lines += ["", f"Length covariate: corr(length, coherence) = {_np.corrcoef(L_, C_)[0, 1]:+.2f}; corr(length, match) = {_np.corrcoef(L_[Mm], M_[Mm])[0, 1]:+.2f} (n = {len(pairs)})."]
         # E3 frontier: match (effect) vs coherence, per method, one point per leaning×sign, and the method means.
         fig, ax = plt.subplots(figsize=(6.5, 5))
         for method in [m for m in present if m != "baseline"]:
