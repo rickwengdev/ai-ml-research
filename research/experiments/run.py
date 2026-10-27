@@ -76,14 +76,20 @@ def main():
     ap.add_argument("--gate", action="store_true", help="also run every directional method with Hill gating")
     ap.add_argument("--physio", default="", help="comma-separated chemicals to run as direct physiology at ±1 (e.g. NOREPINEPHRINE,OXYTOCIN,CORTISOL,DOPAMINE,ADRENALINE,ENDORPHIN)")
     ap.add_argument("--all-curves", action="store_true", help="keep every direction's curve and the residual norms per row (for the controls)")
+    ap.add_argument("--system", choices=["constitution", "bare"], default="constitution", help="bare: the one-line prompt extraction uses, no <此刻> block; a factor against the full persona")
     ap.add_argument("--max-tokens", type=int, default=200)
     ap.add_argument("--seed", type=int, default=11, help="for sampling the prompts")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
     turns = json.load(open(os.path.join(REPO, "training", "data", "generated", "turns.json"), encoding="utf-8"))
-    system = turns["system"]
-    context = next(t["context"] for t in turns["turns"] if "上一次說話" in t["context"])
+    if a.system == "bare":
+        from extract import BASE_SYSTEM  # noqa: PLC0415
+
+        system, context = BASE_SYSTEM, ""
+    else:
+        system = turns["system"]
+        context = next(t["context"] for t in turns["turns"] if "上一次說話" in t["context"])
     pool = [json.loads(l) for l in open(os.path.join(REPO, "training", "data", "generated", "prompts.jsonl"), encoding="utf-8")]
     rng = random.Random(a.seed)
     rng.shuffle(pool)
@@ -99,7 +105,7 @@ def main():
         if p not in prompts:
             prompts.append(p)
     prompts = prompts[: a.prompts]
-    json.dump({"model": a.model, "system": system, "context": context, "prompts": prompts}, open(os.path.join(a.out, "setup.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    json.dump({"model": a.model, "system_kind": a.system, "system": system, "context": context, "prompts": prompts}, open(os.path.join(a.out, "setup.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
     jobs = []
     for seed in range(a.seeds):
@@ -134,7 +140,7 @@ def main():
                 continue
             method, dim, value, seed, p = job
             body = {
-                "model": a.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": f"{context}\n\n{p['prompt']}"}],
+                "model": a.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": f"{context}\n\n{p['prompt']}" if context else p["prompt"]}],
                 "temperature": 0.7, "seed": seed, "max_tokens": a.max_tokens, "reasoning_effort": "none",
             }
             if dim and method.startswith("physio"):

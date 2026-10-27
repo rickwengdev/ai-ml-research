@@ -50,9 +50,14 @@ def main():
     ap.add_argument("--url", default="http://127.0.0.1:1299")
     ap.add_argument("--model", default="mlx-community/Qwen3.5-4B-MLX-4bit")
     ap.add_argument("--seeds", type=int, default=8)
+    ap.add_argument("--system", choices=["constitution", "bare"], default="constitution")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     system = json.load(open(os.path.join(REPO, "training", "data", "generated", "turns.json"), encoding="utf-8"))["system"]
+    if a.system == "bare":
+        from extract import BASE_SYSTEM  # noqa: PLC0415
+
+        system = BASE_SYSTEM
     path = os.path.join(a.out, "drift.jsonl")
     done = {(json.loads(l)["script"], json.loads(l)["seed"]) for l in open(path, encoding="utf-8")} if os.path.exists(path) else set()
     seq = get(f"{a.url}/trace?after=0")["seq"]

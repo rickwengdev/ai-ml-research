@@ -34,9 +34,15 @@ def main():
     ap.add_argument("--model", default="mlx-community/Qwen3.5-4B-MLX-4bit")
     ap.add_argument("--prompts", type=int, default=20)
     ap.add_argument("--endo-seeds", type=int, default=5)
+    ap.add_argument("--system", choices=["constitution", "bare"], default="constitution")
+    ap.add_argument("--conditions", default="all", help="all, or key: uniform gains, noradrenaline, the social leanings and random directions only")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     setup = json.load(open(os.path.join(a.source, "setup.json"), encoding="utf-8"))
+    if a.system == "bare":
+        from extract import BASE_SYSTEM  # noqa: PLC0415
+
+        setup = {**setup, "system": BASE_SYSTEM, "context": ""}
     gens = [json.loads(l) for l in open(os.path.join(a.source, "gens.jsonl"), encoding="utf-8")]
     base = {r["prompt"]: r["text"] for r in gens if r["method"] == "baseline" and r["seed"] == 0 and r["text"].strip()}
     prompts = [p for p in setup["prompts"] if p["prompt"] in base][: a.prompts]
@@ -60,6 +66,8 @@ def main():
     for dim in ("warmth", "guard", "love", "familiarity", "random1", "random2"):
         for v in (1.0, -1.0):
             conditions.append((f"target {LABEL.get(dim, dim)} {v:+.0f}", {"steering": {dim: v}, "method": "target"}))
+    if a.conditions == "key":
+        conditions = [c for c in conditions if c[0].startswith(("uniform", "physio NOREPINEPHRINE", "target")) and "loop" not in c[0]]
     path = os.path.join(a.out, "divergence.jsonl")
     done = {(json.loads(l)["condition"], json.loads(l)["prompt"]) for l in open(path, encoding="utf-8")} if os.path.exists(path) else set()
     with open(path, "a", encoding="utf-8") as out:
@@ -67,7 +75,7 @@ def main():
             for p in prompts:
                 if (name, p["prompt"]) in done:
                     continue
-                body = {"model": a.model, "messages": [{"role": "system", "content": setup["system"]}, {"role": "user", "content": f"{setup['context']}\n\n{p['prompt']}"}], "reply": base[p["prompt"]], **extra}
+                body = {"model": a.model, "messages": [{"role": "system", "content": setup["system"]}, {"role": "user", "content": f"{setup['context']}\n\n{p['prompt']}" if setup["context"] else p["prompt"]}], "reply": base[p["prompt"]], **extra}
                 try:
                     r = post(f"{a.url}/divergence", body)
                 except Exception as err:  # noqa: BLE001
