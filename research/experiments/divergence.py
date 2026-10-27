@@ -47,6 +47,12 @@ def main():
             conditions.append((f"endocrine k2 mid scale{scale} seed{seed}", {"endocrine": {"k": 2, "layers": "mid", "seed": seed, "receptor_scale": scale}}))
     for seed in range(min(3, a.endo_seeds)):
         conditions.append((f"endocrine k4 band scale0.5 seed{seed}", {"endocrine": {"k": 4, "layers": "band", "seed": seed, "receptor_scale": 0.5, "density": 0.02}}))
+    # Uniform-gain controls: every band layer's update scaled by the same scalar, nothing else (no social or deep
+    # gain, no temperature). Sizes bracket the random receptors' RMS (~0.1 at scale 1) and the physio band gain (~0.36).
+    off = {"social": 0.0, "late": 0.0, "explore": 0.0, "precision": 0.0}
+    for g in (0.1, 0.36, 0.8):
+        for sign in (1.0, -1.0):
+            conditions.append((f"uniform band gain {1 + sign * g:.2f}", {"physio": {"NOREPINEPHRINE": sign}, "physio_params": {**off, "band": g / 0.719}, "entropy_loop": False}))
     for chem in ("NOREPINEPHRINE", "OXYTOCIN", "CORTISOL", "DOPAMINE"):
         for v in (1.0, -1.0):
             conditions.append((f"physio {chem} {v:+.0f}", {"physio": {chem: v}, "entropy_loop": False}))
@@ -71,7 +77,8 @@ def main():
                 out.flush()
             rows = [json.loads(l) for l in open(path, encoding="utf-8")]
             mine = [r for r in rows if r["condition"] == name]
-            print(f"{name:40} KL {statistics.fmean(r['kl'] for r in mine):.4f}  entropy {statistics.fmean(r['entropy_plain'] for r in mine):.2f}→{statistics.fmean(r['entropy'] for r in mine):.2f}  ({len(mine)})", file=sys.stderr)
+            res = [r.get("residual") for r in mine if r.get("residual") is not None]
+            print(f"{name:40} KL {statistics.fmean(r['kl'] for r in mine):.4f}  residual {statistics.fmean(res) if res else float('nan'):.4f}  T {statistics.fmean(r.get('fitted_temperature', 1) for r in mine):.2f}  entropy {statistics.fmean(r['entropy_plain'] for r in mine):.2f}→{statistics.fmean(r['entropy'] for r in mine):.2f}  ({len(mine)})", file=sys.stderr)
 
 
 if __name__ == "__main__":
