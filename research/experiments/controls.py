@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The accumulation result put to its controls (experiments/run.py --all-curves with random directions):
 
-  units      the steered direction's projection per layer in three units: σ of that layer's neutral spread (the
-             panel's unit), absolute (raw projection, the same unit at every layer), and as a share of the residual
-             norm at that layer (so a norm that grows with depth cannot pass for amplification);
+  units      the steered direction's projection per layer in three units: the trace's σ (the band-median neutral
+             spread s_d, the panel's unit), absolute (projection × s_d, the same unit at every layer), and as a
+             share of the residual norm at that layer (so a norm that grows with depth cannot pass for amplification);
   gain       projection reached at the band's last layer and at the output over the amount added per layer, in
              absolute units, for leanings and for random directions of the same α;
   default    where the unsteered model already sits along each direction, per layer (the baseline rows), so a sign
@@ -54,8 +54,8 @@ def main():
         out = []
         for r in rows:
             sig = np.array(r["curves"][dim])
-            spread = vectors.spreads[dim]
-            absolute = sig * spread
+            # The trace's unit is the band-median scale s_d (steer.py watch), the same at every layer.
+            absolute = sig * vectors.scales[dim]
             if unit == "sigma":
                 out.append(sig)
             elif unit == "abs":
@@ -71,7 +71,7 @@ def main():
         sig = np.mean([r["curves"][dim] for r in rows], axis=0)
         if unit == "sigma":
             return sig
-        absolute = sig * vectors.spreads[dim]
+        absolute = sig * vectors.scales[dim]
         return absolute if unit == "abs" else absolute / np.maximum(np.mean([r["norms"] for r in rows], axis=0), 1e-6)
 
     lines = [f"# {tag}: controls", "", f"{model}, {len(setup['prompts'])} prompts, band {band[0]}–{band[1]}.", ""]
