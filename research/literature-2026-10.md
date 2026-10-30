@@ -146,3 +146,16 @@
 - https://arxiv.org/abs/2603.02578 · https://arxiv.org/abs/2602.04903 · https://arxiv.org/abs/2605.03907 · https://arxiv.org/abs/2607.09156 · https://arxiv.org/abs/2607.08535 · https://arxiv.org/abs/2606.22357 · https://arxiv.org/abs/2603.18893
 - https://arxiv.org/abs/2604.02236 · https://arxiv.org/abs/2604.07369
 - https://arxiv.org/abs/2603.12378 · https://arxiv.org/abs/2507.14056 · https://arxiv.org/abs/2512.07194 · https://arxiv.org/abs/2604.23878
+
+## 追加（2026-10-30 晚）：「失敗歷史誘發的負向狀態 → 降低它 → 重新審視而非放棄／作弊」這條線
+
+- **Sofroniew et al. 2604.07729 §3.3**：reward hacking 案例裡，desperation 在前幾次測試失敗後上升、隨重複失敗持續爬升、在考慮 hacky 解法時到頂、hack 通過測試後下降。操縱：desperate +0.1 讓 hacking 5%→70%，calm 正向讓 65%→10%；勒索 22% → desperate +0.05 72%、calm +0.05 0%。他們明說狀態是「每一步重新活化相似概念」，不是持續編碼的狀態。沒有報 calm 操縱對任務成功率的影響。
+- **Fomin, David, LeVi 2606.30449（ICML 2026 workshop）**：三個負結果。探針讀的是情境不是行動；Gemma-3-27B 上情緒向量操縱失去特異性，連貓、天氣、運動等無關方向都被動到。→ 我們要加概念特異性對照。
+- **Peiris 2604.13466**：情緒向量可能只是把更豐富的情境結構投影到人類情緒類別；提出用 SAE 特徵與情緒探針交叉檢驗。
+- **Wilhelm & Kao 2606.06223**：ReAct 在可作弊的 ALFWorld／WebShop；高 reward-hack 活化是「潛在政策狀態」，不必然馬上作弊；操縱只在部分配置有效。
+- **Meek et al. 2610.29129（2026-10-21）**：在含工具呼叫與長上下文的真實情境用 RepE 降 reward hacking，三種向量來源，稱擾動比均勻殘差操縱小，coding 向量可轉移到其他領域。
+- **Fayyazi et al. 2610.17301（2026-10-12）**：殘差流線性讀出預測越權行動 AUROC 0.94；以讀出門控操縱，違規 0.70→0.09、任務完成 1.00；預先登記、hash 鎖定。門控操縱的範本。
+- **Wang et al. 2608.03222 Fail-Fast Restart-Smart**：0.6B 監視器從行為預測失敗；警報時**丟掉提示歷史重啟**（可選保留 diff），SWE-bench Verified 66.6→71.8。→ **上下文重設這個基線已經存在而且有效**，操縱必須和它比。
+- **Rahman et al. 2609.17930**：2,518 條軌跡，agent 第一次犯錯後多半不會恢復、很少自己抓到錯。
+- **McKenzie et al. 2602.06941**：模型會對操縱「內生抵抗」（Llama-3.3-70B 3.8% 明顯自我修正），可能干擾善意操縱。
+- **沒有人做的**：把失敗歷史當誘發源、量「資訊保留（不重複失敗做法）與情感後果（放棄／作弊）分離」、並和上下文重設比較。
