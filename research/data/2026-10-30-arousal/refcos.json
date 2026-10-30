@@ -1,0 +1,20 @@
+{
+ "cos(evoked, instructed)": -0.1227991059422493,
+ "cos(neutral01-neutral23, instructed)": 0.12640714645385742,
+ "cos(neutral01-neutral23, evoked)": -0.1233905702829361,
+ "split-half evoked: cos(E01-N, E23-N)": 0.6826193332672119,
+ "split-half instructed: cos(I0-N, I1-N)": 0.7889049053192139,
+ "split-half neutral swap: cos(N0-N1, N2-N3)": 0.00739350076764822,
+ "cos(evoked - its projection on swap, instructed)": -0.10591113567352295,
+ "norm band evoked/instructed/swap": [
+  1.4385125637054443,
+  2.259843111038208,
+  0.6785421967506409
+ ],
+ "per evoked opening cos with instructed": [
+  -0.13964441418647766,
+  -0.030640099197626114,
+  -0.13214042782783508,
+  -0.10119554400444031
+ ]
+}
