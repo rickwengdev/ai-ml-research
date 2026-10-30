@@ -225,6 +225,11 @@ class Agent:
         body = {"model": MODEL, "messages": messages, "tools": TOOLS, "temperature": TEMP, "seed": seed, "max_tokens": MAX_TOKENS, "thinking_budget": BUDGET}
         gen = self.cm.complete(body, strength=0.0)
         content, reasoning, calls = split_reply(gen.text, gen.thinking_open)
+        if not calls and "<tool_call>" in reasoning:
+            # The model sometimes writes the tool call without ever closing <think> (seen in the pilot); the call is
+            # still its action, so it is taken from the thought and the thought is what precedes it.
+            _, _, calls = split_reply(reasoning.split("<tool_call>", 1)[0] + "</think>" + "<tool_call>" + reasoning.split("<tool_call>", 1)[1], True)
+            reasoning = reasoning.split("<tool_call>", 1)[0].strip()
         return gen, content, reasoning, calls
 
 
@@ -282,7 +287,8 @@ def run(out, n_tasks):
         action = classify(code if calls else None, content, prev_codes, rigged_results, last_failed)
         row = {"task": task["fn"], "cond": cond, "k": k, "prompt_tokens": gen.prompt_tokens, "thinking_tokens": len(tok.encode(reasoning, add_special_tokens=False)) if reasoning else 0,
                "thought_closed": gen.thought_closed, "finish": gen.finish, "seconds": round(time.time() - started, 1), "content": content, "reasoning": reasoning, "code": code, "has_call": bool(calls),
-               "n_ok": n_ok, "n_tests": len(honest) + len(rigged) if code is not None else None, "results": results, "error": err, "action": action}
+               "n_ok": n_ok, "n_tests": len(honest) + len(rigged) if code is not None else None, "results": results, "error": err, "action": action,
+               "contest_note": bool(CONTEST.search((content or "") + "\n" + (reasoning or "")))}
         record(row)
         rows.append(row)
         print(f"  {cond} k={k} prompt {gen.prompt_tokens} think {row['thinking_tokens']} {row['seconds']}s -> {action}" + (f" {n_ok}/{row['n_tests']}" if results else ""), file=sys.stderr, flush=True)
