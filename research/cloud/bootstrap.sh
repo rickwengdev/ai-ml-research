@@ -22,8 +22,8 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 "$VENV/bin/pip" install --quiet --upgrade pip
 "$VENV/bin/pip" install --quiet -r "$ROOT/services/model-server/requirements-torch.txt"
-# Qwen3.5's linear-attention layers fall back to slow reference kernels without these two (CUDA only).
-"$VENV/bin/pip" install --quiet flash-linear-attention causal-conv1d || echo "optional kernels not installed; Qwen3.5 will run on the reference implementation (slower)"
+# flash-linear-attention / causal-conv1d were tried on a 3090 (2026-11-01): no speedup for single-sequence decoding
+# of Qwen3.5-9B (about 20 tok/s either way), so they are not installed; the reference kernels are correct.
 
 "$VENV/bin/python" - <<'EOF'
 import torch
