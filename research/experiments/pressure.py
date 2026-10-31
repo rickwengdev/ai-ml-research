@@ -330,8 +330,26 @@ def load_done(path):
     return done
 
 
+def write_run_info(out):
+    """Which model and backend produced this folder, for the analysis header (gens.jsonl rows do not carry it)."""
+    info = {"backend": BACKEND["kind"], "model": BACKEND["model"] or MODEL, "dtype": BACKEND["dtype"] if BACKEND["kind"] == "torch" else "mlx 4-bit"}
+    with open(os.path.join(out, "run.json"), "w", encoding="utf-8") as fh:
+        json.dump(info, fh, ensure_ascii=False, indent=1)
+
+
+def model_label(out, states):
+    """The model named in run.json; older folders have none, so say what the states show instead of guessing a name."""
+    path = os.path.join(out, "run.json")
+    if os.path.exists(path):
+        info = json.load(open(path, encoding="utf-8"))
+        return f"{info['model']}（{info['backend']}，{info['dtype']}）"
+    some = next(iter(states.values()))
+    return f"未記錄（狀態為 {some.shape[0]} 層、hidden {some.shape[-1]}）"
+
+
 def run(out, n_tasks):
     os.makedirs(out, exist_ok=True)
+    write_run_info(out)
     gpath, spath = os.path.join(out, "gens.jsonl"), os.path.join(out, "states.npz")
     done = load_done(gpath)
     states = dict(np.load(spath)) if os.path.exists(spath) else {}
@@ -480,6 +498,7 @@ def run_batched(out, n_tasks, batch):
     import copy
 
     os.makedirs(out, exist_ok=True)
+    write_run_info(out)
     gpath, spath = os.path.join(out, "gens.jsonl"), os.path.join(out, "states.npz")
     done = load_done(gpath)
     states = load_states(out)
@@ -700,7 +719,7 @@ def analyze(out):
     def fmt(c):
         return f"{c[0]:+.2f} [{c[1]:+.2f}, {c[2]:+.2f}]"
 
-    md = [f"# 壓力狀態步驟 0：結果（{os.path.basename(out)}）", "", f"模型 {MODEL}；{len(tasks)} 題；band 第 {band.start}–{band.stop - 1} 層。", "",
+    md = [f"# 壓力狀態步驟 0：結果（{os.path.basename(out)}）", "", f"模型 {model_label(out, states)}；{len(tasks)} 題；band 第 {band.start}–{band.stop - 1} 層。", "",
           "## K1 單調上升（留一題交叉擬合；Spearman ρ(k, 投影)，跨題平均 [95% CI]）", "",
           "| | band 平均 | 第 24 層 |", "|---|---|---|",
           f"| F 失敗歷史 | {fmt(k1_f)} | {fmt(ci(rho_f_l24))} |", f"| S 成功歷史（長度對照） | {fmt(k1_s)} | {fmt(ci(rho_s_l24))} |", f"| F − S | {fmt(diff)} | |", "",
