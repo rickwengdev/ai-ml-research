@@ -6,8 +6,9 @@ Each draw is one nameless hormone (k=1) with sparse random receptors on the midd
 or −1 (endocrine.py "clamp"), so the draw is one fixed gain pattern and its opposite.
 
   screen     per draw, on the screen prompts: her replies at clamp +1 and −1, and the shift of the replies'
-             projections at the output along the nine leanings, against the unsteered reply to the same prompt
-             (same seed). Half the difference (+1 − −1) per prompt, its mean over prompts and that mean's z. A draw
+             projections at the output along the nine leanings (units s_d, see steer.py). The shift is half the
+             difference (+1 − −1) per prompt; the unsteered reply (same seed) is generated but only used to skip
+             prompts whose trace is missing, not subtracted. Its mean over prompts and that mean's z. A draw
              "points at" the leaning with the largest |z|.
   validate   the top draws by |z| and as many other draws picked at random from the rest (the control for selection),
              on held-out prompts: replies at ±1 and unsteered, written as gens.jsonl in run.py's shape, so judge.py
@@ -17,26 +18,16 @@ or −1 (endocrine.py "clamp"), so the draw is one fixed gain pattern and its op
 
 usage: screen.py --out docs/research/data/<date>-screen [--draws 48] [--scale 4] [--validate --top 6]
 """
-import argparse, json, os, random, statistics, sys, urllib.request
+import argparse, json, os, random, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+from client import get, post  # noqa: E402
 from steer import DIMS, LABEL  # noqa: E402
 from extract import BASE_SYSTEM  # noqa: E402
 from sweep import junk_ratio, repeat_ratio, zh_share  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
-
-
-def post(url, body, timeout=600):
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return json.load(res)
-
-
-def get(url):
-    with urllib.request.urlopen(url, timeout=30) as res:
-        return json.load(res)
 
 
 class Client:
@@ -45,7 +36,7 @@ class Client:
         self.seq = get(f"{url}/trace?after=0")["seq"]
 
     def reply(self, prompt, endocrine=None):
-        """Her reply and the mean projection of its tokens at the output layer, per leaning (σ)."""
+        """Her reply and the mean projection of its tokens at the output layer, per leaning (in s_d)."""
         body = {"model": self.model, "messages": [{"role": "system", "content": BASE_SYSTEM}, {"role": "user", "content": prompt}], "temperature": 0.7, "seed": 0, "max_tokens": self.max_tokens, "reasoning_effort": "none"}
         if endocrine is not None:
             body["endocrine"] = endocrine

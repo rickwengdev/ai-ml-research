@@ -18,27 +18,17 @@ real system prompt and a state-free <此刻> block (training/data/generated/turn
 usage: run.py --out docs/research/data/<date>-e2e3 [--url http://127.0.0.1:1299] [--prompts 30] [--seeds 2]
 Resumes: rows already in gens.jsonl are skipped.
 """
-import argparse, json, os, random, re, sys, time, urllib.request
+import argparse, json, os, random, re, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+from client import get, post  # noqa: E402
 from steer import DIMS, LABEL  # noqa: E402
 from sweep import ROMANCE, SIMPLIFIED, junk_ratio, repeat_ratio, zh_share  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
 CRUDE = re.compile(r"死|屁|靠|幹|爛|鬼|撸|操|媽的|蠢|廢物|欠揍")
 VALUES = [-1.0, -0.5, 0.5, 1.0]
-
-
-def post(url, body, timeout=600):
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return json.load(res)
-
-
-def get(url):
-    with urllib.request.urlopen(url, timeout=30) as res:
-        return json.load(res)
 
 
 def metrics(text):

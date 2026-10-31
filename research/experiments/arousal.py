@@ -14,12 +14,13 @@ fast and think little.
 
 usage: arousal.py run|probe|analyze --out docs/research/data/<date>-arousal [--url http://127.0.0.1:1299]
 """
-import argparse, json, os, random, re, statistics, sys, urllib.request
+import argparse, json, os, random, re, statistics, sys
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+from client import post  # noqa: E402
 
 MODEL = "mlx-community/Qwen3.5-4B-MLX-4bit"
 SYSTEM = "你是一個助手。"
@@ -70,12 +71,6 @@ def user_text(opening, q):
     return f"{opening}\n\n{FORMAT}\n\n{q}"
 
 
-def post(url, body, timeout=900):
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return json.load(res)
-
-
 ANSWER = re.compile(r"答案[:：]\s*(-?\d[\d,]*)")
 
 
@@ -108,7 +103,7 @@ def run(out, url):
         for n, (it, (cond, k, opening)) in enumerate(todo):
             seed = int(it["id"].split("-")[1]) + (1000 if it["difficulty"] == "complex" else 0)
             body = {"model": MODEL, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user_text(opening, it["q"])}], "temperature": 0.6, "seed": seed, "max_tokens": MAX_TOKENS, "thinking_budget": BUDGET}
-            data = post(f"{url}/v1/chat/completions", body)
+            data = post(f"{url}/v1/chat/completions", body, timeout=900)
             msg = data["choices"][0]["message"]
             content, reasoning = msg.get("content") or "", msg.get("reasoning_content") or ""
             usage = data.get("usage", {})

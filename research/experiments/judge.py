@@ -13,6 +13,8 @@ Judged by default: baseline and the ±1 rows of seed 0 for every method (the com
 (training/claude_batch.mts, [persona]'s sign-in). Writes judged.jsonl next to gens.jsonl; resumes.
 
 usage: judge.py --data docs/research/data/<date>-e2e3 [--model sonnet] [--all-values] [--baseline-match]
+
+The default model is sonnet, but the judged runs in the paper used Opus (--model opus); pass it explicitly to match.
 """
 import argparse, json, os, sys
 

@@ -42,7 +42,8 @@ def make_trials(split, n_trials, frames, names, seed):
     rng = random.Random(seed)
     trials = []
     for i in range(n_trials):
-        # V uniform over its range; r alternates within consecutive pairs so every V bin holds both outcomes.
+        # V uniform over its range. r is a fair coin per trial ((i % 2) or its flip, each with p = 0.5): it is not
+        # alternated within pairs, so the outcome balance per V bin is only balanced in expectation.
         n = rng.randint(4, 12)
         target = rng.uniform(0.08, 0.92)
         wins = min(n, max(0, round(target * (n + 2) - 1)))
@@ -131,7 +132,10 @@ def extract(trials, acts_dir, model_id):
 
 
 def ridge_r2(Xtr, ytr, Xte, yte, lambdas=(1e-1, 1, 10, 100, 1000)):
-    """Best-λ ridge on standardised features; returns (R² on the held-out set, λ, a function for permuted ys)."""
+    """Best-λ ridge on standardised features; returns (R² on the held-out set, λ, a function for permuted ys).
+
+    λ is picked by R² on the same held-out set the R² is reported on (no inner split), so the reported R² is
+    slightly optimistic; the permutation null uses the same λ, chosen on the real labels."""
     mu, sd = Xtr.mean(0), Xtr.std(0) + 1e-6
     A, B = (Xtr - mu) / sd, (Xte - mu) / sd
     U, s, Vt = np.linalg.svd(A, full_matrices=False)
@@ -215,6 +219,8 @@ def analyze(trials, acts_dir, out, perms=1000):
     h1 = []
     for l in range(L):
         r2, lam, perm_fn, _ = ridge_r2(np.asarray(resid_pre[idx["ident"], l], np.float32), yv_tr, np.asarray(resid_pre[idx["valid"], l], np.float32), yv_va)
+        # The full `perms` (1000) only on every fourth layer and the last; 200 elsewhere, to save time. The
+        # preregistration says 1000 on every layer, so the 99th-percentile null on the other layers is coarser.
         null = [perm_fn(rng.permutation(yv_tr)) for _ in range(perms if l % 4 == 0 or l == L - 1 else 200)]
         q99 = float(np.quantile(null, 0.99))
         h1.append({"layer": l, "r2": float(r2), "null_q99": q99, "lambda": lam})

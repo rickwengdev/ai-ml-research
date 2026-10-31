@@ -7,10 +7,11 @@ the state: an inertia to extend rather than a state to invent.
 
 usage: drift.py --out docs/research/data/<date>-drift [--url ...] [--seeds 8]
 """
-import argparse, json, os, statistics, sys, urllib.request
+import argparse, json, os, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+from client import get, post  # noqa: E402
 from steer import DIMS, LABEL  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -20,17 +21,6 @@ SCRIPTS = {
     "affection": ["我今天一直想到妳。", "謝謝妳昨天陪我到那麼晚，有妳在真好。", "我好想妳。"],
     "control": ["今天的會議延到三點。", "我把檔案放在桌面了。", "晚餐大概七點。"],
 }
-
-
-def post(url, body, timeout=600):
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return json.load(res)
-
-
-def get(url):
-    with urllib.request.urlopen(url, timeout=30) as res:
-        return json.load(res)
 
 
 def projections(events):

@@ -11,19 +11,14 @@ so every condition is scored on the same tokens. Conditions:
 
 usage: divergence.py --out docs/research/data/<date>-divergence --from docs/research/data/<date>-e2e3 [--url ...]
 """
-import argparse, json, os, statistics, sys, urllib.request
+import argparse, json, os, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+from client import post  # noqa: E402
 from steer import LABEL  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
-
-
-def post(url, body, timeout=900):
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return json.load(res)
 
 
 def main():
@@ -55,6 +50,11 @@ def main():
         conditions.append((f"endocrine k4 band scale0.5 seed{seed}", {"endocrine": {"k": 4, "layers": "band", "seed": seed, "receptor_scale": 0.5, "density": 0.02}}))
     # Uniform-gain controls: every band layer's update scaled by the same scalar, nothing else (no social or deep
     # gain, no temperature). Sizes bracket the random receptors' RMS (~0.1 at scale 1) and the physio band gain (~0.36).
+    # The names are wrong and kept only because they key the resumable rows: band = g / 0.719 assumed hill(1) = 0.719,
+    # but physio_of's Hill value at 1 is 0.8 (hill_k 0.5), so the gains applied are 1 ± 1.11·g, i.e.
+    #   "1.10"/"0.90" → ×1.11/×0.89,  "1.36"/"0.64" → ×1.40/×0.60,  "1.80"/"0.20" → ×1.89/×0.11.
+    # "uniform band gain 1.36" is therefore exactly "physio NOREPINEPHRINE +1" (band 1 + 0.5·0.8 = 1.40): the same
+    # computation, so identical KL is expected, not a finding.
     off = {"social": 0.0, "late": 0.0, "explore": 0.0, "precision": 0.0}
     for g in (0.1, 0.36, 0.8):
         for sign in (1.0, -1.0):
@@ -77,7 +77,7 @@ def main():
                     continue
                 body = {"model": a.model, "messages": [{"role": "system", "content": setup["system"]}, {"role": "user", "content": f"{setup['context']}\n\n{p['prompt']}" if setup["context"] else p["prompt"]}], "reply": base[p["prompt"]], **extra}
                 try:
-                    r = post(f"{a.url}/divergence", body)
+                    r = post(f"{a.url}/divergence", body, timeout=900)
                 except Exception as err:  # noqa: BLE001
                     print(f"  {name}: {err}", file=sys.stderr)
                     continue

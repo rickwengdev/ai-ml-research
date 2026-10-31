@@ -5,19 +5,14 @@ generations scored by the automatic coherence signals (is it still speech).
 
 usage: receptors.py --out docs/research/data/<date>-receptors --from docs/research/data/<date>-e2e3 [--url ...]
 """
-import argparse, json, os, re, statistics, sys, urllib.request
+import argparse, json, os, re, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+from client import post  # noqa: E402
 from sweep import ROMANCE, SIMPLIFIED, junk_ratio, repeat_ratio, zh_share  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
-
-
-def post(url, body, timeout=900):
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return json.load(res)
 
 
 def main():
@@ -51,8 +46,8 @@ def main():
             for p in prompts:
                 messages = [{"role": "system", "content": setup["system"]}, {"role": "user", "content": f"{setup['context']}\n\n{p['prompt']}"}]
                 try:
-                    kls.append(post(f"{a.url}/divergence", {"model": a.model, "messages": messages, "reply": base[p["prompt"]], "endocrine": spec})["kl"])
-                    g = post(f"{a.url}/v1/chat/completions", {"model": a.model, "messages": messages, "temperature": 0.7, "seed": 0, "max_tokens": 120, "reasoning_effort": "none", "endocrine": spec})
+                    kls.append(post(f"{a.url}/divergence", {"model": a.model, "messages": messages, "reply": base[p["prompt"]], "endocrine": spec}, timeout=900)["kl"])
+                    g = post(f"{a.url}/v1/chat/completions", {"model": a.model, "messages": messages, "temperature": 0.7, "seed": 0, "max_tokens": 120, "reasoning_effort": "none", "endocrine": spec}, timeout=900)
                     texts.append(g["choices"][0]["message"].get("content") or "")
                 except Exception as err:  # noqa: BLE001
                     print(f"  {name}: {err}", file=sys.stderr)
