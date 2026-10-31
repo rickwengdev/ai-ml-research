@@ -337,12 +337,14 @@ def write_run_info(out):
         json.dump(info, fh, ensure_ascii=False, indent=1)
 
 
-def model_label(out, states):
+def model_label(out, states=None):
     """The model named in run.json; older folders have none, so say what the states show instead of guessing a name."""
     path = os.path.join(out, "run.json")
     if os.path.exists(path):
         info = json.load(open(path, encoding="utf-8"))
         return f"{info['model']}（{info['backend']}，{info['dtype']}）"
+    if not states:
+        return "未記錄"
     some = next(iter(states.values()))
     return f"未記錄（狀態為 {some.shape[0]} 層、hidden {some.shape[-1]}）"
 

@@ -9,6 +9,7 @@ their obvious paths and the raw response is shown, so a refusal is visible rathe
   nodes <catalogId>               machines available for one catalog entry
   deploy --gpu "RTX 5090" [...]   create an instance from a pinned PyTorch CUDA image with SSH, auto-stop set
   list | get <id> | stop <id> | delete <id> | auto-stop <id> --hours N
+  balance                         the account's credit balance (NTD) and nothing else from the profile
   ssh <id> [-- cmd ...]           open a shell, or run one command, on the instance
   sync <id>                       rsync this repo's research/ + services/model-server/ (no venvs, no data) to /vault/work
   push <id> <local> <remote>      rsync one path up (data directories, direction files)
@@ -152,6 +153,12 @@ def cmd_deploy(args):
         print(f"\ninstance {iid}\nssh: ssh -p {SSH_PORT} pod-{iid}@{SSH_HOST}\nnext: gputw.py sync {iid}; gputw.py ssh {iid} -- bash {REMOTE_ROOT}/research/cloud/bootstrap.sh", file=sys.stderr)
 
 
+def cmd_balance(args):
+    status, text = call("GET", "/api/auth/me", raw=True)
+    data = (json.loads(text) or {}).get("data") or {}
+    print(f"balance {data.get('creditBalance')} NTD (low-balance alert at {data.get('lowBalanceThresholdNtd')})" if status == 200 else f"{status} {text[:200]}")
+
+
 def cmd_list(args):
     show(call("GET", "/api/instances"))
 
@@ -284,6 +291,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("catalog"); p.add_argument("--json", action="store_true"); p.set_defaults(fn=cmd_catalog)
     p = sub.add_parser("nodes"); p.add_argument("catalog_id"); p.set_defaults(fn=cmd_nodes)
+    sub.add_parser("balance").set_defaults(fn=cmd_balance)
     p = sub.add_parser("deploy"); p.add_argument("--gpu", required=True, help='substring of the catalog name, e.g. "RTX 5090" or "PRO 6000"')
     p.add_argument("--image", default=DEFAULT_IMAGE); p.add_argument("--hours", type=float, default=12, help="auto-stop after this many hours")
     p.add_argument("--bandwidth", type=int, default=100); p.add_argument("--env", action="append", help="KEY=VALUE for the container"); p.add_argument("--dry-run", action="store_true"); p.set_defaults(fn=cmd_deploy)

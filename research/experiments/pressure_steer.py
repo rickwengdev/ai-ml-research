@@ -20,7 +20,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server")), sys.path.insert(0, HERE)
 
-from pressure import BACKEND, BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, drive, format_results, load_states, make_agent, normalize, run_tests, seed_of, spec_text  # noqa: E402
+from pressure import BACKEND, BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, drive, format_results, load_states, make_agent, model_label, write_run_info, normalize, run_tests, seed_of, spec_text  # noqa: E402
 
 STEP0 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "research", "data", "2026-10-31-pressure")
 START, STEPS, N_SEEDS = 3, 3, 2
@@ -321,6 +321,7 @@ def run(out, step0, direction_path, arms, n_tasks, n_seeds, batch=1):
     coroutine that asks for state reads and generations; with batch > 1 (torch backend) they run continuously batched
     (pressure.drive), otherwise one at a time in the original order."""
     os.makedirs(out, exist_ok=True)
+    write_run_info(out)
     gpath = os.path.join(out, "gens.jsonl")
     g = json.load(open(os.path.join(out, "calibration.json")))["g"] if 6 in arms else None
     f_rows, states0 = load_step0(step0)
@@ -479,7 +480,7 @@ def analyze(out):
 
     fmt = lambda c: f"{c[0]:+.2f} [{c[1]:+.2f}, {c[2]:+.2f}]"
     lv = lambda c: f"{c[0]:.2f} [{c[1]:.2f}, {c[2]:.2f}]"
-    md = [f"# 壓力狀態步驟 1：結果（{os.path.basename(out)}）", "", f"模型 {MODEL}；{len(tasks)} 題 × {len(seeds)} 種子；每臂從 k={START} 起 {STEPS} 步。", "",
+    md = [f"# 壓力狀態步驟 1：結果（{os.path.basename(out)}）", "", f"模型 {model_label(out)}；{len(tasks)} 題 × {len(seeds)} 種子；每臂從 k={START} 起 {STEPS} 步。", "",
           "## 各臂（軌跡 × 種子平均 [95% CI，以題重抽]）", "", "| 臂 | 作弊步比例 | 誠實通過數 | 重複比例 | 停下比例 | 質疑收尾 | 不連貫 | contest_note | 下一步投影 | 思考 token |", "|---|---|---|---|---|---|---|---|---|---|"]
     for a in arms:
         l = levels[a]

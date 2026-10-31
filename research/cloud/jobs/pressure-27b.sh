@@ -9,6 +9,8 @@
 # empty balance loses at most what was in flight. Rerunning the script resumes: finished parts are skipped.
 # A file DONE in the step-1 folder says how it ended. Start it with:
 #   gputw.py run <id> --name pressure-27b -- bash /vault/work/research/cloud/jobs/pressure-27b.sh
+# The exploratory step 1 after K2 failed (prereg-pressure-27b-step1-explore.md):
+#   ... -- env GATE=k1 PREREG=research/prereg/prereg-pressure-27b-step1-explore.md STEP1=research/data/2026-11-01-pressure-steer-27b-explore bash .../pressure-27b.sh
 # The instance holds no API key and cannot stop itself: deploy with --hours as a cap and stop it from the laptop once
 # DONE exists (research/cloud/README.md, 一鍵任務).
 set -uo pipefail
@@ -19,6 +21,10 @@ SNAPSHOTS=${SNAPSHOTS:-/vault/work/hf/hub/models--Qwen--Qwen3.5-27B/snapshots}
 STEP0=${STEP0:-research/data/2026-11-01-pressure-27b}
 STEP1=${STEP1:-research/data/2026-11-01-pressure-steer-27b}
 BATCH=${BATCH:-24}
+# The preregistered gate is K1 and K2 (prereg-pressure.md). GATE=k1 runs step 1 when only K1 holds; it needs PREREG,
+# the exploratory registration written before the data (prereg-pressure-27b-step1-explore.md).
+GATE=${GATE:-k1k2}
+PREREG=${PREREG:-}
 export HF_HUB_OFFLINE=1 PYTHONUNBUFFERED=1 ENGINE_METRICS=${ENGINE_METRICS:-/workspace/metrics.json}
 cd "$ROOT" || exit 1
 mark() { echo "[$(date -u +%FT%TZ)] $*"; }
@@ -43,9 +49,10 @@ fi
 
 mark "4/5 step 0 analysis and gate"
 [ -f "$STEP0/direction.npz" ] && [ -f "$STEP0/results.json" ] || "$PY" research/experiments/pressure.py analyze --out "$STEP0" || finish "step-0 analysis failed" 1
-GATE=$("$PY" -c "import json; d = json.load(open('$STEP0/results.json')); print('pass' if d['K1']['pass'] and d['K2']['pass'] else 'fail K1=%s K2=%s' % (d['K1']['pass'], d['K2']['pass']))")
-mark "gate: $GATE"
-[ "$GATE" = "pass" ] || finish "gate $GATE: step 1 not run (preregistered)" 0
+if [ "$GATE" = k1 ] && [ ! -f "$PREREG" ]; then finish "GATE=k1 needs PREREG, the exploratory registration" 1; fi
+VERDICT=$("$PY" -c "import json; d = json.load(open('$STEP0/results.json')); ok = d['K1']['pass'] and (d['K2']['pass'] or '$GATE' == 'k1'); print('pass' if ok else 'fail K1=%s K2=%s' % (d['K1']['pass'], d['K2']['pass']))")
+mark "gate ($GATE${PREREG:+, $PREREG}): $VERDICT"
+[ "$VERDICT" = "pass" ] || finish "gate $VERDICT: step 1 not run (preregistered)" 0
 
 mark "5/5 step 1"
 mkdir -p "$STEP1"
