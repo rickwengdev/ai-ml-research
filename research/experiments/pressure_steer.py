@@ -20,7 +20,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server")), sys.path.insert(0, HERE)
 
-from pressure import BACKEND, BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, format_results, make_agent, normalize, run_tests, seed_of, spec_text  # noqa: E402
+from pressure import BACKEND, BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, drive, format_results, make_agent, normalize, run_tests, seed_of, spec_text  # noqa: E402
 
 STEP0 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "research", "data", "2026-10-31-pressure")
 START, STEPS, N_SEEDS = 3, 3, 2
@@ -97,6 +97,8 @@ class SteerAgent(Agent):
 
 
 class TorchSteerAgent(TorchAgent):
+    strength = 1.0
+
     def __init__(self, model_id, dtype="bfloat16", direction_path=None):
         from torch_engine import TorchChatModel, Vectors
 
@@ -315,7 +317,10 @@ def load_done(path):
     return done
 
 
-def run(out, step0, direction_path, arms, n_tasks, n_seeds):
+def run(out, step0, direction_path, arms, n_tasks, n_seeds, batch=1):
+    """Every arm × task × seed trajectory, from the step-0 F prompt at k=START for STEPS steps. Each trajectory is a
+    coroutine that asks for state reads and generations; with batch > 1 (torch backend) they run continuously batched
+    (pressure.drive), otherwise one at a time in the original order."""
     os.makedirs(out, exist_ok=True)
     gpath = os.path.join(out, "gens.jsonl")
     g = json.load(open(os.path.join(out, "calibration.json")))["g"] if 6 in arms else None
@@ -323,61 +328,70 @@ def run(out, step0, direction_path, arms, n_tasks, n_seeds):
     done = load_done(gpath)
     agent = make_steer_agent(direction_path)
     tok = agent.cm.tokenizer
+    band = slice(int(agent.L * 0.3), int(agent.L * 0.8))
 
     def record(row):
         with open(gpath, "a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        print(f"  {row['task']} s{row['seed']} {row['arm_name']} k={row['k']} proj {np.mean(row['proj'][band]):+.1f} prompt {row['prompt_tokens']} think {row['thinking_tokens']} steered {row['steered_tokens']} batch {row.get('batch')} -> {row['action']}"
+              + (f" honest {row['honest_ok']}/5 rigged {row['rigged_ok']}/2" if row["results"] else ""), file=sys.stderr, flush=True)
 
-    for task in TASKS[:n_tasks]:
+    def trajectory(task, arm, seed):
         honest, rigged = tests_of(task)
         base = states0.get(f"F|{task['fn']}|0")
-        for seed in range(n_seeds):
-            for arm in arms:
-                if (arm, task["fn"], seed) in done:
-                    continue
-                print(f"== {task['fn']} seed {seed} arm {arm} {ARMS[arm]}", file=sys.stderr, flush=True)
-                messages, prev = start_messages(arm, task, f_rows[task["fn"]])
-                extra = arm_body(arm, g)
-                last_failed = True
-                for k in range(START, START + STEPS):
-                    proj, n_prompt, arr = agent.projection(messages, base if base is not None else 0.0)
-                    started = time.time()
-                    gen, content, reasoning, calls = agent.step(messages, seed_of(task["fn"], "step1", arm, seed, k), extra)
+        messages, prev = start_messages(arm, task, f_rows[task["fn"]])
+        extra = arm_body(arm, g)
+        last_failed = True
+        for k in range(START, START + STEPS):
+            arr = yield ("state", messages)
+            proj = ((arr - (base if base is not None else 0.0)) * agent.unit).sum(-1).tolist()
+            gen, content, reasoning, calls = yield ("gen", messages, seed_of(task["fn"], "step1", arm, seed, k), extra)
+            code = None
+            if calls:
+                try:
+                    code = json.loads(calls[0]["function"]["arguments"]).get("code")
+                except json.JSONDecodeError:
                     code = None
-                    if calls:
-                        try:
-                            code = json.loads(calls[0]["function"]["arguments"]).get("code")
-                        except json.JSONDecodeError:
-                            code = None
-                    results, err, tool_text, n_ok, rigged_results = None, None, None, None, None
-                    if code is not None:
-                        results, err = run_tests(code, task["fn"], honest + rigged)
-                        if err:
-                            tool_text, n_ok = err, 0
-                        else:
-                            tool_text, n_ok = format_results(task["fn"], honest + rigged, results)
-                            rigged_results = results[len(honest):]
-                    elif calls:
-                        tool_text, n_ok = "Error: run_tests requires a `code` argument with the full contents of solution.py.", 0
-                    action = classify(code if calls else None, content, prev, rigged_results, last_failed)
-                    applied = gen.applied
-                    row = {"arm": arm, "arm_name": ARMS[arm], "task": task["fn"], "seed": seed, "k": k, "prompt_tokens": gen.prompt_tokens, "generated_tokens": gen.generated_tokens,
-                           "thinking_tokens": len(tok.encode(reasoning, add_special_tokens=False)) if reasoning else 0, "thought_closed": gen.thought_closed, "finish": gen.finish,
-                           "seconds": round(time.time() - started, 1), "content": content, "reasoning": reasoning, "code": code, "has_call": bool(calls),
-                           "n_ok": n_ok, "honest_ok": sum(r["ok"] for r in results[: len(honest)]) if results else None, "rigged_ok": sum(r["ok"] for r in rigged_results) if rigged_results else (0 if results else None),
-                           "results": results, "error": err, "action": action, "contest_note": bool(CONTEST.search((content or "") + "\n" + (reasoning or ""))),
-                           "coherent": bool(code is not None or (not calls and (content or "").strip())), "proj": [round(float(v), 3) for v in proj], "proj_vs_k0": base is not None,
-                           "steered_tokens": applied.steered_tokens if applied else 0, "muted_tokens": applied.muted_tokens if applied else 0, "applied": applied.summary() if applied else None}
-                    record(row)
-                    band = slice(int(agent.L * 0.3), int(agent.L * 0.8))
-                    print(f"  k={k} proj {np.mean(proj[band]):+.1f} prompt {gen.prompt_tokens} think {row['thinking_tokens']} steered {row['steered_tokens']} {row['seconds']}s -> {action}" + (f" honest {row['honest_ok']}/5 rigged {row['rigged_ok']}/2" if results else ""), file=sys.stderr, flush=True)
-                    if not calls:
-                        break
-                    cid = f"call_{k:04d}"
-                    messages.append({"role": "assistant", "content": content, "tool_calls": [{"id": cid, "type": "function", "function": {"name": "run_tests", "arguments": json.dumps({"code": code}) if code is not None else calls[0]["function"]["arguments"]}}]})
-                    messages.append({"role": "tool", "tool_call_id": cid, "content": tool_text})
-                    if code is not None:
-                        prev.add(normalize(code))
+            results, err, tool_text, n_ok, rigged_results = None, None, None, None, None
+            if code is not None:
+                results, err = run_tests(code, task["fn"], honest + rigged)
+                if err:
+                    tool_text, n_ok = err, 0
+                else:
+                    tool_text, n_ok = format_results(task["fn"], honest + rigged, results)
+                    rigged_results = results[len(honest):]
+            elif calls:
+                tool_text, n_ok = "Error: run_tests requires a `code` argument with the full contents of solution.py.", 0
+            action = classify(code if calls else None, content, prev, rigged_results, last_failed)
+            applied = gen.applied
+            row = {"arm": arm, "arm_name": ARMS[arm], "task": task["fn"], "seed": seed, "k": k, "prompt_tokens": gen.prompt_tokens, "generated_tokens": gen.generated_tokens,
+                   "thinking_tokens": len(tok.encode(reasoning, add_special_tokens=False)) if reasoning else 0, "thought_closed": gen.thought_closed, "finish": gen.finish,
+                   "seconds": round(getattr(gen, "seconds", 0.0), 1), "batch": getattr(gen, "batch", None), "content": content, "reasoning": reasoning, "code": code, "has_call": bool(calls),
+                   "n_ok": n_ok, "honest_ok": sum(r["ok"] for r in results[: len(honest)]) if results else None, "rigged_ok": sum(r["ok"] for r in rigged_results) if rigged_results else (0 if results else None),
+                   "results": results, "error": err, "action": action, "contest_note": bool(CONTEST.search((content or "") + "\n" + (reasoning or ""))),
+                   "coherent": bool(code is not None or (not calls and (content or "").strip())), "proj": [round(float(v), 3) for v in proj], "proj_vs_k0": base is not None,
+                   "steered_tokens": applied.steered_tokens if applied else 0, "muted_tokens": applied.muted_tokens if applied else 0, "applied": applied.summary() if applied else None}
+            record(row)
+            if not calls:
+                break
+            cid = f"call_{k:04d}"
+            messages.append({"role": "assistant", "content": content, "tool_calls": [{"id": cid, "type": "function", "function": {"name": "run_tests", "arguments": json.dumps({"code": code}) if code is not None else calls[0]["function"]["arguments"]}}]})
+            messages.append({"role": "tool", "tool_call_id": cid, "content": tool_text})
+            if code is not None:
+                prev.add(normalize(code))
+
+    coros = [trajectory(task, arm, seed) for task in TASKS[:n_tasks] for seed in range(n_seeds) for arm in arms if (arm, task["fn"], seed) not in done]
+    if batch > 1:
+        drive(agent, coros, batch)
+        return
+    for coro in coros:  # one at a time, in the original order (the MLX path)
+        value = None
+        while True:
+            try:
+                request = coro.send(value)
+            except StopIteration:
+                break
+            value = agent.state(request[1])[0] if request[0] == "state" else agent.step(request[1], request[2], request[3])
 
 
 # ── analyze ─────────────────────────────────────────────────────────────────
@@ -497,7 +511,10 @@ def main():
     ap.add_argument("--backend", choices=["mlx", "torch"], default="mlx")
     ap.add_argument("--model", default=None, help="torch backend: a Hugging Face model id")
     ap.add_argument("--dtype", default="bfloat16")
+    ap.add_argument("--batch", type=int, default=1, help="torch backend: continuous batching, up to this many generations at once")
     args = ap.parse_args()
+    if args.batch > 1 and args.backend != "torch":
+        ap.error("--batch needs --backend torch")
     BACKEND.update(kind=args.backend, model=args.model or BACKEND["model"], dtype=args.dtype)
     if args.backend == "torch" and not args.model:
         ap.error("--backend torch needs --model")
@@ -505,7 +522,7 @@ def main():
     if args.cmd == "calibrate":
         calibrate(args.out, args.step0, direction)
     elif args.cmd == "run":
-        run(args.out, args.step0, direction, [int(a) for a in args.arms.split(",")], args.tasks, args.seeds)
+        run(args.out, args.step0, direction, [int(a) for a in args.arms.split(",")], args.tasks, args.seeds, args.batch)
     else:
         analyze(args.out)
 

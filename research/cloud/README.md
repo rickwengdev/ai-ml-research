@@ -33,7 +33,7 @@ $G stop <id>                                 # 停機就不計費；/workspace �
 
 ## 批次與即時監控
 
-- 實驗腳本加 `--batch N`（只限 `--backend torch`）：所有軌跡同步往前走，每輪最多 N 條一起生成。每列各自的種子，所以一列的 token 不受同批其他列影響；每列先各自 prefill 再合併快取，避免左側填充滲進 Qwen3.5 的線性注意力層（實測兩個填充 token 就讓狀態偏到 cos 0.9995）。27B bf16 在 RTX Pro 6000 上：逐條 10–12 tok/s，批次 24 約 150–250 tok/s，GPU 被 500 W 功耗上限卡住。
+- 實驗腳本加 `--batch N`（只限 `--backend torch`）：連續批次，最多 N 條一起生成；一條軌跡的一步生成完，就立刻跑測試、把它的下一步接進正在跑的批次，不用等同一批最慢的那條（`torch_engine.ContinuousBatcher`、`pressure.drive`）。每列各自的種子，所以一列的 token 不受同批其他列影響；新加入的列先單獨 prefill，再把快取接進批次（全注意力層左側補零並遮罩，線性注意力層的固定狀態直接接上），跑完的列立刻移出，避免左側填充滲進 Qwen3.5 的線性注意力層（實測兩個填充 token 就讓狀態偏到 cos 0.9995）。27B bf16 在 RTX Pro 6000 上：逐條 10–12 tok/s，批次 24 約 150–250 tok/s，GPU 被 500 W 功耗上限卡住。
 - 監控面板：引擎每秒把累計 token 寫到 `$ENGINE_METRICS`；`monitor.py` 在機器上讀它和 `nvidia-smi`，只聽 127.0.0.1。用 SSH 通道接回本機，不開任何公開連接埠：
 
 ```bash

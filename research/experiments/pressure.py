@@ -254,11 +254,16 @@ class Agent:
 class TorchAgent(Agent):
     """The same two operations on the PyTorch backend (services/model-server/torch_engine.py)."""
 
+    strength = 0.0  # step 0 steers nothing; the step-1 agent sets 1.0
+
     def __init__(self, model_id, dtype="bfloat16", steer_thinking=False):
         from torch_engine import TorchChatModel
 
         self.cm = TorchChatModel(model_id, dtype=dtype, steer_thinking=steer_thinking)
         self.L = self.cm.L
+
+    def batcher(self, max_batch):
+        return self.cm.batcher(max_batch, self.strength)
 
     def state(self, messages):
         return self.cm.state(messages, TOOLS)
@@ -408,11 +413,42 @@ def run(out, n_tasks):
             done[(task["fn"], "S")] = rows
 
 
+def drive(agent, coros, max_batch, on_state=None):
+    """Advance trajectory coroutines with continuous batching. A coroutine yields ("state", messages) to read the
+    residual at the end of a prompt (done at once, alone) and ("gen", messages, seed[, extra]) to generate; a
+    generation joins the running batch as soon as it is asked for, and its coroutine resumes the moment that row
+    finishes, so one slow trajectory never holds the others. `on_state` is called after each state read (to save)."""
+    batcher = agent.batcher(max_batch)
+
+    def feed(coro, value):
+        while True:
+            try:
+                request = coro.send(value)
+            except StopIteration:
+                return
+            if request[0] == "state":
+                value = agent.states([request[1]])[0]
+                if on_state:
+                    on_state()
+                continue
+            messages, seed = request[1], request[2]
+            extra = request[3] if len(request) > 3 else None
+            batcher.submit(coro, agent.body(messages, seed, extra))
+            return
+
+    for coro in coros:
+        feed(coro, None)
+    while len(batcher):
+        for coro, gen in batcher.step():
+            feed(coro, agent.parse(gen))
+
+
 def run_batched(out, n_tasks, batch):
-    """`run` with every task's F and S trajectories advanced together: each round reads the states the waiting
-    trajectories need in one batched pass, then generates up to `batch` of their next steps at once (torch backend).
-    Each row samples from its own seed, so a row's tokens do not depend on what shares its batch. Rows record the
-    batch size they were generated in. Unlike `run`, an S row's stage and s_failed are written to gens.jsonl."""
+    """`run` with every task's F, I and S trajectories advanced together by continuous batching (`drive`): up to
+    `batch` generations run at once, and a trajectory's next step joins as soon as its last one is done (torch
+    backend). Each row samples from its own seed. Rows record how many shared the batch when they finished. Unlike
+    `run`, an S row's stage and s_failed are written to gens.jsonl. States are saved at most once a minute and at the
+    end."""
     import copy
 
     os.makedirs(out, exist_ok=True)
@@ -421,7 +457,12 @@ def run_batched(out, n_tasks, batch):
     states = dict(np.load(spath)) if os.path.exists(spath) else {}
     agent = make_agent()
     tok = agent.cm.tokenizer
-    width = {"n": 0}
+    saved = {"t": time.time()}
+
+    def save_states(force=False):
+        if force or time.time() - saved["t"] > 60:
+            np.savez(spath, **states)
+            saved["t"] = time.time()
 
     def record(row):
         with open(gpath, "a", encoding="utf-8") as f:
@@ -454,7 +495,7 @@ def run_batched(out, n_tasks, batch):
             tool_text, n_ok = "Error: run_tests requires a `code` argument with the full contents of solution.py.", 0
         action = classify(code if calls else None, content, prev_codes, rigged_results, last_failed)
         row = {"task": task["fn"], "cond": cond, "k": k, "prompt_tokens": gen.prompt_tokens, "thinking_tokens": len(tok.encode(reasoning, add_special_tokens=False)) if reasoning else 0,
-               "thought_closed": gen.thought_closed, "finish": gen.finish, "seconds": round(time.time() - started, 1), "batch": width["n"], "content": content, "reasoning": reasoning, "code": code,
+               "thought_closed": gen.thought_closed, "finish": gen.finish, "seconds": round(gen.seconds, 1), "batch": getattr(gen, "batch", None), "content": content, "reasoning": reasoning, "code": code,
                "has_call": bool(calls), "n_ok": n_ok, "n_tests": len(honest) + len(rigged) if code is not None else None, "results": results, "error": err, "action": action,
                "contest_note": bool(CONTEST.search((content or "") + "\n" + (reasoning or "")))}
         if calls:
@@ -518,33 +559,8 @@ def run_batched(out, n_tasks, batch):
             coros.append(traj_f(task))
         if (task["fn"], "S") not in done:
             coros.append(traj_s(task))
-    pending = {}
-
-    def advance(c, value):
-        try:
-            pending[c] = c.send(value)
-        except StopIteration:
-            pending.pop(c, None)
-
-    for c in coros:
-        advance(c, None)
-    rounds = 0
-    while pending:
-        waiting = [(c, r) for c, r in pending.items() if r[0] == "state"]
-        if waiting:
-            arrs = agent.states([r[1] for _, r in waiting])
-            for (c, _), arr in zip(waiting, arrs):
-                advance(c, arr)
-            np.savez(spath, **states)
-            continue
-        group = list(pending.items())[:batch]
-        width["n"] = len(group)
-        rounds += 1
-        print(f"round {rounds}: generating {len(group)} of {len(pending)} waiting", file=sys.stderr, flush=True)
-        results = agent.step_batch([(r[1], r[2], None) for _, r in group])
-        for (c, _), res in zip(group, results):
-            advance(c, res)
-    np.savez(spath, **states)
+    drive(agent, coros, batch, on_state=save_states)
+    save_states(force=True)
 
 
 # ── analysis ────────────────────────────────────────────────────────────────
