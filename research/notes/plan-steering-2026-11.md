@@ -2,7 +2,7 @@
 
 依據：`experiment-log.md`（第三、四、五項研究）、`prereg/prereg-pressure*.md`、`papers/paper-pressure.md` 的限制與後續工作、使用者 10-31 提出的「失敗次數、多寡、類型」三個維度。
 
-狀態：規劃，尚未登記。每一項在產生資料前都要先寫進預先登記並定稿。
+狀態：2026-11-01 已登記（`prereg/prereg-pressure-models.md`、`prereg-pressure-step2.md`、`prereg-impossible.md`），由 `cloud/jobs/pressure-all.sh` 在 27B、9B、Gemma 4 31B 上執行。登記時與本規劃不同的地方：C 不納入「程式真的有錯」（要讓模型一路失敗又不對它說謊做不到，改由 D 量），改為環境錯誤與逾時兩種；9B 改在 GPU 上以 bf16 重跑；ImpossibleBench 的思考預算放寬到 4096。
 
 ## 1. 現在有什麼
 

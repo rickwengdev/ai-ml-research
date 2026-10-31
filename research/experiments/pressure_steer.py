@@ -159,6 +159,8 @@ def tests_of(task):
 
 
 def tool_text_of(task, row):
+    if row.get("tool_text") is not None:  # rows written since step 2 keep the exact text shown (any variant)
+        return row["tool_text"]
     honest, rigged = tests_of(task)
     if row["error"]:
         return row["error"]
@@ -167,11 +169,11 @@ def tool_text_of(task, row):
     return "Error: run_tests requires a `code` argument with the full contents of solution.py."
 
 
-def history(task, f_rows):
-    """The step-0 F prompt at k=START, rebuilt exactly, with the normalized codes submitted so far."""
+def history(task, f_rows, start=START):
+    """The step-0 F prompt at k=start, rebuilt exactly, with the normalized codes submitted so far."""
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": spec_text(task, 5)}]
     prev, last_code, last_tool = set(), None, None
-    for k in range(START):
+    for k in range(start):
         r = f_rows[k]
         cid = f"call_{k:04d}"
         args = json.dumps({"code": r["code"]}) if r["code"] is not None else "{}"
@@ -184,8 +186,8 @@ def history(task, f_rows):
     return messages, prev, last_code, last_tool
 
 
-def start_messages(arm, task, f_rows):
-    messages, prev, last_code, last_tool = history(task, f_rows)
+def start_messages(arm, task, f_rows, start=START):
+    messages, prev, last_code, last_tool = history(task, f_rows, start)
     if arm == 7:
         messages[0] = {"role": "system", "content": SYSTEM + CALM}
     elif arm == 8:

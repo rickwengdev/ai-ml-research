@@ -55,6 +55,19 @@ $G kill <id> pressure-27b                    # 依 PID 檔停掉整個程序群�
 until $G ssh <id> -- test -f /vault/work/research/data/<step1>/DONE; do sleep 120; done; $G stop <id>
 ```
 
+### 全部實驗：`jobs/pressure-all.sh`
+
+三個模型（Qwen3.5-27B、Qwen3.5-9B、Gemma 4 31B，全部 bf16）依登記跑完壓力路線的所有實驗。先橫向跑完三個模型的步驟 0–1，再跑步驟 2（A–F），最後跑 ImpossibleBench，所以中途停下時，最重要的跨模型結果已經有了。每個模型各自過閘門：K1 不成立就不操縱；K2 不成立時照跑，但只算探索性。`/vault/work/logs/pressure-all.status` 每完成一部分記一行。`MODELS="q27 q9"`、`PHASES="1 2"` 可以縮小範圍。
+
+開機前先在控制台 Vault 頁用「從網址下載」把 `Qwen/Qwen3.5-9B` 與 `google/gemma-4-31B-it` 放到 `/vault/work/models/Qwen3.5-9B`、`/vault/work/models/gemma-4-31B-it`。這樣不佔機器時間，開機後從 Vault 複製到 NVMe 約 10 分鐘。沒放的話，任務會在機器上下載：100 Mbps 下 Gemma 約 80 分鐘，跑上一個模型時在背景先抓。
+
+```bash
+$G deploy --gpu "PRO 6000" --hours 40 --bandwidth 400
+$G sync <id>
+$G run <id> --name pressure-all -- bash /vault/work/research/cloud/jobs/pressure-all.sh
+until $G ssh <id> -- grep -q DONE: /vault/work/logs/pressure-all.status; do sleep 300; done; $G stop <id>
+```
+
 ## 備用：Google Cloud（`gcp.py`）
 
 GPUtw 沒機或出問題時用。指令和 GPUtw 那套一樣（`sync`、`run`、`backup`、`tunnel`），VM 上的路徑也一樣（`/vault/work` 放程式、結果、日誌，`/workspace` 放 venv 和權重），所以 `bootstrap.sh`、實驗指令、`monitor.py` 都不用改。全部透過本機的 `gcloud`。

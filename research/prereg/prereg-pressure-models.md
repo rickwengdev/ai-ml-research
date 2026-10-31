@@ -1,0 +1,46 @@
+# 預先登記：壓力狀態步驟 0 與步驟 1 在 Gemma 4 31B 與 Qwen3.5-9B（bf16）上
+
+登記日期：2026-11-01，在這兩個模型上產生任何資料之前。背景：`prereg-pressure.md`（步驟 0 與殺死判準）、`prereg-pressure-step1.md`（步驟 1，含先導後的修改）、`prereg-pressure-27b.md`（27B 的做法）、`prereg-pressure-27b-step1-explore.md`。執行：`research/cloud/jobs/pressure-all.sh`。
+
+## 問題
+
+9B（MLX 4-bit）上成立的方向與操縱，換成另一個家族的模型（Gemma 4 31B）、以及同一個 9B 改用全精度與另一個後端時，是否仍然成立？這兩個模型和 27B 一起，給出「跨模型」與「跨精度」兩種複製。
+
+## 模型與設定
+
+| | Gemma 4 31B | Qwen3.5-9B |
+|---|---|---|
+| 權重 | `google/gemma-4-31B-it`，bf16 | `Qwen/Qwen3.5-9B`，bf16 |
+| 層數、hidden | 60、5376 | 32、4096 |
+| band（第 30%–80% 層） | 第 18–47 層 | 第 9–24 層 |
+| 對話格式 | Gemma 4 原生：思考 `<\|channel>thought…<channel\|>`、工具呼叫 `<\|tool_call>call:run_tests{…}<tool_call\|>`；以模板的 `enable_thinking` 開啟思考 | Qwen 原生，與 9B MLX 相同 |
+| 生成批次 | 16 | 48 |
+
+- 後端：PyTorch（`services/model-server/torch_engine.py`），RTX Pro 6000。連續批次已驗證：Gemma 的滑動視窗層與 Qwen 的線性注意力層，在批次中與逐條生成逐 token 相同（本機 float32 測試）。
+- 取樣：三個模型都用 temperature 0.6、top_p 0.95、思考預算 2048、max_tokens 3500、同樣的種子規則。Gemma 官方建議 temperature 1.0、top_k 64；為了跨模型比較，不採用。
+- 題目、條件、讀數、分析、K1／K2 門檻：同 `prereg-pressure.md`。步驟 1 的臂、劑量（主劑量 1 輪、劑量臂 2 輪）、g 的校準程序、H1–H6 與門檻：同 `prereg-pressure-step1.md`。方向與「一輪」都在各模型上重新量，不跨模型搬。
+- 9B bf16 與 9B MLX 4-bit 是兩個後端，結果並列，不合併。
+
+## 閘門（每個模型各自）
+
+- K1 不成立：這個模型上沒有可讀的累積方向，不做任何操縱（步驟 1、步驟 2、ImpossibleBench），記錄。
+- K1 成立、K2 不成立：依母登記不做確認性的操縱。使用者已在 2026-11-01 決定仍然在 27B 上操縱，並以同樣理由適用於這兩個模型：操縱照跑，但結果只寫成「觀察到／沒觀察到」，不寫成假說成立或不成立（同 `prereg-pressure-27b-step1-explore.md`）。
+- 兩個都成立：步驟 1 是確認性的。
+
+## Gemma 的先導
+
+Gemma 先跑 1 題的步驟 0（不納入），由 `research/cloud/jobs/pilot_check.py` 自動判定。F 軌跡必須在 k = 0 呼叫工具並送出可解析的程式碼，至少連續三步，而且沒有回覆在工具呼叫中途被截斷。不通過就不跑 Gemma 的正式步驟 0，記錄先導的原始資料，其餘模型照常。先導通過後不改任何設定。另外依 27B 登記的規則：若正式的 F 軌跡多數在 k ≤ 2 就結束，判為「不可判」，不進入操縱。
+
+## 不會做的事
+
+- 不調層帶、劑量、門檻、題目或取樣設定。
+- 不用其他模型的方向或 g。
+- 不把不同模型或不同後端的資料放進同一個 bootstrap。
+
+## 預估（Pro 6000）
+
+步驟 0 約 130 次生成，步驟 1 約 506 次。9B 每小時約 1,000 次生成（估計），Gemma 31B 約 300 次（估計，未實測），合計約 3.5 小時。
+
+## 修改紀錄
+
+（尚無）
