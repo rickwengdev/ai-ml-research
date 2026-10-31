@@ -129,7 +129,9 @@ def cmd_deploy(args):
     nodes = sorted(nodes, key=lambda n: n.get("hourlyRate") or n.get("price") or 1e9)
     node = nodes[0]
     nid = node.get("id") or node.get("nodeId") or node.get("machineId")
-    env = [{"name": k, "value": v} for k, v in ([("HF_HOME", f"{REMOTE_ROOT}/hf"), ("PYTHONUNBUFFERED", "1")] + [tuple(e.split("=", 1)) for e in (args.env or [])])]
+    # Model weights go to the instance disk: /vault writes at a few MB/s (measured 6 MB/s direct), /workspace at GB/s.
+    # Weights that must persist are fetched into the Vault server-side from the console ("從網址下載") instead.
+    env = [{"name": k, "value": v} for k, v in ([("HF_HOME", "/workspace/hf"), ("PYTHONUNBUFFERED", "1")] + [tuple(e.split("=", 1)) for e in (args.env or [])])]
     body = {"nodeId": nid, "bandwidthMbps": args.bandwidth, "ports": [],
             "customImage": {"dockerImage": args.image, "sshEnabled": True, "webUiEnabled": False, "env": env, "args": ["sleep", "infinity"]},
             "autoStopHours": args.hours}

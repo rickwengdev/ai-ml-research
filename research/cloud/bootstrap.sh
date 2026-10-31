@@ -5,7 +5,8 @@
 # instance, which takes about a minute) and pre-downloads the models into /vault/hf so later instances skip it.
 set -euo pipefail
 ROOT=/vault/work
-export HF_HOME=${HF_HOME:-$ROOT/hf}
+# Weights on the instance disk (fast); /vault writes at a few MB/s. Persistent copies: console "從網址下載" into the Vault.
+export HF_HOME=${HF_HOME:-/workspace/hf}
 export PYTHONUNBUFFERED=1
 mkdir -p "$HF_HOME" "$ROOT/logs" "$ROOT/research/data"
 

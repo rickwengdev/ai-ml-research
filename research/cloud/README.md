@@ -25,7 +25,7 @@ $G stop <id>                                 # 停機就不計費；/workspace �
 
 ## 要記得的事
 
-- 只有 `/vault` 會留下來；模型快取（`HF_HOME=/vault/work/hf`）、結果、日誌都放那裡。`/workspace` 的 venv 每台重建。
+- 只有 `/vault` 會留下來，但它的寫入很慢（實測 6 MB/s），所以模型權重放 `/workspace/hf`（每台重抓，400 Mbps 下 27B 約 20 分鐘），結果與日誌才放 `/vault`。要長期保存的權重用控制台 Vault 頁的「從網址下載」填 Hugging Face repo，由他們的伺服器抓進 Vault，不占機器時間；之後 `--model /vault/work/models/<名稱>` 直接載（讀取是快的）。`/workspace` 的 venv 每台重建。
 - 計費從部署開始（含拉映像），停機即止。`deploy --hours` 一定要設，忘了就靠 `auto-stop`。
 - 寫結果的腳本都能續跑（`gens.jsonl` 逐行追加），機器被收回就重開一台、`sync`、再 `run` 同一個指令。
 - 實驗腳本用 `--backend torch` 時走 `torch_engine.py`；`--backend mlx`（預設）走原本的 `engine.py`。兩個後端的生成不是逐 token 相同（取樣實作不同），同一個研究不要混用。
