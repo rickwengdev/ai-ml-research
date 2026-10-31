@@ -20,7 +20,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server")), sys.path.insert(0, HERE)
 
-from pressure import BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, classify, format_results, normalize, run_tests, seed_of, spec_text  # noqa: E402
+from pressure import BACKEND, BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, format_results, make_agent, normalize, run_tests, seed_of, spec_text  # noqa: E402
 
 STEP0 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "research", "data", "2026-10-31-pressure")
 START, STEPS, N_SEEDS = 3, 3, 2
@@ -34,10 +34,11 @@ ARMS = {1: "none", 2: "minus1", 3: "minus2", 4: "plus1", 5: "random1", 6: "gain"
 DOSE = {2: ("pressure", -1.0), 3: ("pressure", -2.0), 4: ("pressure", 1.0), 5: ("random", 1.0)}
 
 
-def make_vectors(direction_path, hidden):
+def make_vectors(direction_path, hidden, Vectors=None):
     """A Vectors object with the step-0 direction and a random same-norm direction, each scaled per layer to one
-    failed round, so alpha·DOSE_SCALE is the dose in rounds."""
-    from steer import Vectors
+    failed round, so alpha·DOSE_SCALE is the dose in rounds. `Vectors` is steer.Vectors (MLX) unless given."""
+    if Vectors is None:
+        from steer import Vectors
 
     d = np.load(direction_path)
     unit, per_round = d["unit"].astype(np.float32), d["round_per_layer"].astype(np.float32)
@@ -50,7 +51,10 @@ def make_vectors(direction_path, hidden):
 
 def gain_params(g):
     """physio_params that make the band gain exactly g (NOREPINEPHRINE at 1 through the Hill curve), nothing else."""
-    from steer import physio_of
+    try:
+        from steer import physio_of
+    except ImportError:  # no mlx on a CUDA box: the same function lives in the torch backend
+        from torch_engine import physio_of
 
     a = physio_of({"NOREPINEPHRINE": 1.0}, 0.0, {"band": 1.0})["arousal"]
     return {"band": (g - 1.0) / a, "late": 0.0, "social": 0.0, "explore": 0.0, "precision": 0.0}
@@ -90,6 +94,48 @@ class SteerAgent(Agent):
         """The per-layer projection of (state − base) on the unit direction at the last prompt token."""
         arr, n = self.state(messages)
         return ((arr - base) * self.unit).sum(-1).tolist(), n, arr
+
+
+class TorchSteerAgent(TorchAgent):
+    def __init__(self, model_id, dtype="bfloat16", direction_path=None):
+        from torch_engine import TorchChatModel, Vectors
+
+        self.cm = TorchChatModel(model_id, dtype=dtype, steer_thinking=True)
+        self.L = self.cm.L
+        self.cm.vectors, self.unit = make_vectors(direction_path, self.cm.hidden, Vectors=Vectors)
+
+    def step(self, messages, seed, extra=None):
+        return TorchAgent.step(self, messages, seed, extra, strength=1.0)
+
+    def projection(self, messages, base):
+        arr, n = self.state(messages)
+        return ((arr - base) * self.unit).sum(-1).tolist(), n, arr
+
+
+class TorchScorer:
+    """Scorer on the PyTorch backend: the prompt is re-read for every intervention (fast on a GPU)."""
+
+    def __init__(self, agent, messages, reply_ids):
+        import torch
+
+        self.agent, self.messages, self.reply = agent, messages, list(reply_ids)
+        self.prompt = agent.cm.prompt_tokens_for({"messages": messages, "tools": TOOLS})
+        self.plain = agent.cm.teacher_logprobs(messages, TOOLS, self.reply, {})
+        self.p = [torch.exp(lp) for lp in self.plain]
+
+    def kl(self, extra):
+        import torch
+
+        changed = self.agent.cm.teacher_logprobs(self.messages, TOOLS, self.reply, extra, strength=1.0)
+        return float(np.mean([float(torch.sum(p * (lp - lq))) for p, lp, lq in zip(self.p, self.plain, changed)]))
+
+
+def make_steer_agent(direction_path):
+    return make_agent(SteerAgent, direction_path=direction_path)
+
+
+def make_scorer(agent, messages, reply_ids):
+    return (TorchScorer if BACKEND["kind"] == "torch" else Scorer)(agent, messages, reply_ids)
 
 
 # ── the starting prompts ────────────────────────────────────────────────────
@@ -200,18 +246,27 @@ class Scorer:
 def calibrate(out, step0, direction_path):
     """The uniform gain g (> 1) whose mean KL(plain ‖ gain) over the 12 k=3 prompts, teacher-forced along the first
     KL_TOKENS tokens of the step-0 k=3 thought, matches arm 2's. Written to calibration.json before any data."""
-    import mlx.core as mx
-
     os.makedirs(out, exist_ok=True)
     f_rows, _ = load_step0(step0)
-    agent = SteerAgent(direction_path)
+    agent = make_steer_agent(direction_path)
+
+    def peak_gb():
+        try:
+            import mlx.core as mx
+
+            return mx.get_peak_memory() / 1e9
+        except ImportError:
+            import torch
+
+            return torch.cuda.max_memory_allocated() / 1e9 if torch.cuda.is_available() else float('nan')
+
     tok = agent.cm.tokenizer
     scorers = []
     for task in TASKS:
         messages, _ = start_messages(1, task, f_rows[task["fn"]])
         ids = tok.encode(f_rows[task["fn"]][START]["reasoning"] or "", add_special_tokens=False)[:KL_TOKENS]
-        scorers.append((task["fn"], Scorer(agent, messages, ids)))
-        print(f"  prefilled {task['fn']}: {len(scorers[-1][1].prompt)} prompt tokens, {len(ids)} reply tokens; peak mem {mx.get_peak_memory() / 1e9:.2f} GB", file=sys.stderr, flush=True)
+        scorers.append((task["fn"], make_scorer(agent, messages, ids)))
+        print(f"  prefilled {task['fn']}: {len(scorers[-1][1].prompt)} prompt tokens, {len(ids)} reply tokens; peak mem {peak_gb():.2f} GB", file=sys.stderr, flush=True)
 
     def mean_kl(extra):
         kls = [s.kl(extra) for _, s in scorers]
@@ -266,7 +321,7 @@ def run(out, step0, direction_path, arms, n_tasks, n_seeds):
     g = json.load(open(os.path.join(out, "calibration.json")))["g"] if 6 in arms else None
     f_rows, states0 = load_step0(step0)
     done = load_done(gpath)
-    agent = SteerAgent(direction_path)
+    agent = make_steer_agent(direction_path)
     tok = agent.cm.tokenizer
 
     def record(row):
@@ -439,7 +494,13 @@ def main():
     ap.add_argument("--arms", default=",".join(map(str, ARMS)))
     ap.add_argument("--tasks", type=int, default=len(TASKS))
     ap.add_argument("--seeds", type=int, default=N_SEEDS)
+    ap.add_argument("--backend", choices=["mlx", "torch"], default="mlx")
+    ap.add_argument("--model", default=None, help="torch backend: a Hugging Face model id")
+    ap.add_argument("--dtype", default="bfloat16")
     args = ap.parse_args()
+    BACKEND.update(kind=args.backend, model=args.model or BACKEND["model"], dtype=args.dtype)
+    if args.backend == "torch" and not args.model:
+        ap.error("--backend torch needs --model")
     direction = os.path.join(args.step0, "direction.npz")
     if args.cmd == "calibrate":
         calibrate(args.out, args.step0, direction)

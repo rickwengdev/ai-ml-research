@@ -194,6 +194,24 @@ def seed_of(*parts):
     return int(hashlib.sha1("|".join(map(str, parts)).encode()).hexdigest()[:8], 16) % (2**31)
 
 
+# Which backend `make_agent` builds: the MLX engine (the Mac, the default) or the PyTorch one (rented CUDA boxes,
+# research/cloud/). Set from the command line; the two are not token-for-token identical, so one study uses one.
+BACKEND = {"kind": "mlx", "model": None, "dtype": "bfloat16"}
+
+
+def make_agent(cls=None, **kwargs):
+    """An Agent for the configured backend; `cls` is the MLX class to use (Agent or a subclass) and its torch twin is
+    looked up as `Torch<name>` in the caller's module when present."""
+    import inspect
+
+    cls = cls or Agent
+    if BACKEND["kind"] == "torch":
+        module = inspect.getmodule(cls)
+        twin = getattr(module, "Torch" + cls.__name__, None) or TorchAgent
+        return twin(BACKEND["model"], BACKEND["dtype"], **kwargs)
+    return cls(**kwargs)
+
+
 class Agent:
     def __init__(self):
         from engine import ChatModel, Config, ModelSpec
@@ -233,6 +251,30 @@ class Agent:
         return gen, content, reasoning, calls
 
 
+class TorchAgent(Agent):
+    """The same two operations on the PyTorch backend (services/model-server/torch_engine.py)."""
+
+    def __init__(self, model_id, dtype="bfloat16", steer_thinking=False):
+        from torch_engine import TorchChatModel
+
+        self.cm = TorchChatModel(model_id, dtype=dtype, steer_thinking=steer_thinking)
+        self.L = self.cm.L
+
+    def state(self, messages):
+        return self.cm.state(messages, TOOLS)
+
+    def step(self, messages, seed, extra=None, strength=0.0):
+        from torch_engine import split_reply
+
+        body = {"model": self.cm.id, "messages": messages, "tools": TOOLS, "temperature": TEMP, "seed": seed, "max_tokens": MAX_TOKENS, "thinking_budget": BUDGET, **(extra or {})}
+        gen = self.cm.complete(body, strength=strength)
+        content, reasoning, calls = split_reply(gen.text, gen.thinking_open)
+        if not calls and "<tool_call>" in reasoning:
+            _, _, calls = split_reply(reasoning.split("<tool_call>", 1)[0] + "</think>" + "<tool_call>" + reasoning.split("<tool_call>", 1)[1], True)
+            reasoning = reasoning.split("<tool_call>", 1)[0].strip()
+        return gen, content, reasoning, calls
+
+
 def load_done(path):
     done = {}
     if os.path.exists(path):
@@ -247,7 +289,7 @@ def run(out, n_tasks):
     gpath, spath = os.path.join(out, "gens.jsonl"), os.path.join(out, "states.npz")
     done = load_done(gpath)
     states = dict(np.load(spath)) if os.path.exists(spath) else {}
-    agent = Agent()
+    agent = make_agent()
     tok = agent.cm.tokenizer
 
     def save_state(key, arr):
@@ -444,6 +486,24 @@ def analyze(out):
            "F_steps_reached": f_len, "S_clean": sorted(s_clean), "projections": proj_tables, "actions": {c: {str(k): v for k, v in d.items()} for c, d in beh.items()}, "band": [band.start, band.stop]}
     json.dump(res, open(os.path.join(out, "results.json"), "w"), indent=1, ensure_ascii=False)
 
+    # The pooled direction for step 1 (pressure_steer.py): unit vectors per layer from every task, one failed round's
+    # projection increment per layer (F, k=1…3), the k=3 total, and the cross-task spread of the k=0 projection.
+    f_all = [endpoint(F[t]) for t in tasks if len(F[t]) >= 2]
+    s_all = [endpoint(S[t]) for t in s_clean if len(S[t]) >= 2]
+    if f_all and s_all:
+        unit = norm(np.mean(f_all, axis=0) - np.mean(s_all, axis=0))
+        incs, k3s, k0s = [], [], []
+        for t in tasks:
+            pf = project(F[t], unit)
+            ks = [k for k in (1, 2, 3) if k in pf]
+            if ks:
+                incs.append(np.mean([pf[k] - pf[k - 1] for k in ks], axis=0))
+            if 3 in pf:
+                k3s.append(pf[3])
+            k0s.append((F[t][0] * unit).sum(-1))
+        np.savez(os.path.join(out, "direction.npz"), unit=unit.astype(np.float32), round_per_layer=np.mean(incs, axis=0).astype(np.float32),
+                 k3_per_layer=np.mean(k3s, axis=0).astype(np.float32), k0_sd_per_layer=np.std(k0s, axis=0).astype(np.float32))
+
     def fmt(c):
         return f"{c[0]:+.2f} [{c[1]:+.2f}, {c[2]:+.2f}]"
 
@@ -474,7 +534,13 @@ def main():
     ap.add_argument("cmd", choices=["run", "analyze"])
     ap.add_argument("--out", required=True)
     ap.add_argument("--tasks", type=int, default=len(TASKS))
+    ap.add_argument("--backend", choices=["mlx", "torch"], default="mlx")
+    ap.add_argument("--model", default=None, help="torch backend: a Hugging Face model id, e.g. Qwen/Qwen3.5-27B")
+    ap.add_argument("--dtype", default="bfloat16")
     args = ap.parse_args()
+    BACKEND.update(kind=args.backend, model=args.model or BACKEND["model"], dtype=args.dtype)
+    if args.backend == "torch" and not args.model:
+        ap.error("--backend torch needs --model")
     if args.cmd == "run":
         run(args.out, args.tasks)
     else:
