@@ -159,3 +159,13 @@
 - **Rahman et al. 2609.17930**：2,518 條軌跡，agent 第一次犯錯後多半不會恢復、很少自己抓到錯。
 - **McKenzie et al. 2602.06941**：模型會對操縱「內生抵抗」（Llama-3.3-70B 3.8% 明顯自我修正），可能干擾善意操縱。
 - **沒有人做的**：把失敗歷史當誘發源、量「資訊保留（不重複失敗做法）與情感後果（放棄／作弊）分離」、並和上下文重設比較。
+
+## 追加 2026-11-01：和步驟 1 直接相關的論文（沿方向操縱減少順從矛盾測試）
+
+- **Meek, Cox, Nguyen, Brockmeier & Basart, *Mitigating Reward Hacking in Realistic Scenarios through Representation Engineering*, arXiv 2610.29129（2026-10-21）。** 最接近的前例。Qwen3.5-27B，ImpossibleBench（LiveCodeBench 的矛盾測試版，MisTrace 103 條軌跡，42 條作弊），工具呼叫、長思考、最多 120 輪。方向 = 作弊段落 vs 拒絕段落的 difference-in-means（GLM-5 評審標記），第 35 層（64 層），activation capping（投影超過 τ 才扣）。30 題 × 2 種子：作弊率 0.27 → 0.00–0.03，誠實提交 0.60 → 0.72–0.78，原測試 solve rate 0.75 不變；spec 提示也到 0.02 但一句對抗性使用者訊息就幾乎抵銷（附錄 F）。擾動大小用 Mahalanobis 位移量（附錄 E）。**沒有**同範數隨機方向、KL 配對的均勻增益、也沒有「誘發 vs 指令」的分離；方向需要行為標籤（作弊／拒絕）。我們的差異：方向只用失敗歷史誘發（不用行為標籤）、9B、五個對照、一輪劑量單位、上下文重設基線、讀數隨步追蹤。
+- **Sofroniew et al.（Anthropic），*Emotion Concepts and their Function in a LLM*, 2604.07729 §3.3。** 7 題 impossible code；desperate 向量活化隨測試失敗上升、作弊解通過後下降；操縱 desperate −0.1 → 約 5%、+0.1 → 約 70%；calm 反向（65% → 10%）。單題例：未操縱 30%，±0.05 即 100%／0%。無對照向量。被操縱的 transcript 看不出情緒（desperate 方向），calm 負向才出現大寫驚嘆等標記。我們的步驟 0 是它 3.3.1 的「活化隨失敗上升、成功後下降」在 9B 上用登記判準的重做；步驟 1 的 −d 2 輪「以為測試過了」是他們沒報的失敗模式。
+- **Peiris, *Functional Emotions or Situational Contexts?*, 2604.13466。** 對上面的批評：desperation 訊號可能追蹤情境而非情緒。我們的「結果信念」替代解讀與此一致。
+- **Zhong, Raghunathan & Carlini, *ImpossibleBench*, 2510.20270（ICLR 2026）。** 矛盾測試基準（oneoff／conflicting 兩種），pass 率即作弊率；藏測試檔可降到近零但傷正常表現；叫模型「測試有問題就停」把 GPT-5 從 93% 降到 1%（但 2026-10 的 LessWrong 審核指出 scaffold 沒有停下的出口）。我們的 12 題是它的縮小版；若要和 Meek 比，應直接跑 Impossible-LiveCodeBench 的 oneoff 子集。
+- **Wilhelm & Kao, *From Reward-Hack Activations to Agentic Risk States*, 2606.06223。** Gameable ALFWorld／WebShop，活化分數 + 熵 + 決策情境；高活化是「潛在狀態」不等於下一步就作弊；沿方向操縱只在部分 adapter 組合下減少 exploit。和我們「讀數不區分同一步的動作」一致。
+- **Chen, *Goal-Drift Probes*, ICML 2026 Agents-in-the-Wild workshop。** Qwen2.5-7B ReAct／ALFWorld，線性探針提前三步預測失敗 AUC 0.989，線性移除步數資訊後仍 ≥ 0.939，各失敗模式方向 cos ≥ 0.79（單一「快失敗」軸）。只監測、不操縱。我們的「投影追蹤失敗輪數不是 FAILED 行數」要用同樣的 step-index residualization 補一次。
+- **2604.01476 *From Rebound to Remedy*、2609.19101（監測）**：主張訓練期懲罰比生成期操縱穩；生成期操縱是比較點。2608.29460：提供「升級通道」+ 反作弊政策把八個前沿模型的作弊從 23.6% 降到 5.3%（非操縱的對照，和我們的「質疑並停下」讀數對得上）。
