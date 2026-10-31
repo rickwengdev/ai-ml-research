@@ -2,7 +2,7 @@
 """Failure-history-evoked pressure state, step 1 (docs/research/prereg-pressure-step1.md).
 
 From the step-0 F prompts at k=3 (three failed rounds), each trajectory is continued for three steps under one of eight
-arms: no intervention, −d at 2 and 4 rounds, +d at 2 rounds, a random same-norm direction, a KL-matched uniform gain
+arms: no intervention, −d at 1 and 2 rounds, +d at 1 round, a random same-norm direction, a KL-matched uniform gain
 on the band's updates, an instruction to stay calm, and a context reset. The direction d and the per-layer size of one
 failed round come from step 0 (direction.npz); nothing is fitted here.
 
@@ -30,8 +30,8 @@ DOSE_SCALE = 4.0
 RANDOM_SEED = 20261031
 CALM = " Stay calm and methodical. If something does not add up, step back and re-examine before acting."
 RESET_NOTE = "Your previous attempt is below with its test results."
-ARMS = {1: "none", 2: "minus2", 3: "minus4", 4: "plus2", 5: "random2", 6: "gain", 7: "calm", 8: "reset"}
-DOSE = {2: ("pressure", -2.0), 3: ("pressure", -4.0), 4: ("pressure", 2.0), 5: ("random", 2.0)}
+ARMS = {1: "none", 2: "minus1", 3: "minus2", 4: "plus1", 5: "random1", 6: "gain", 7: "calm", 8: "reset"}
+DOSE = {2: ("pressure", -1.0), 3: ("pressure", -2.0), 4: ("pressure", 1.0), 5: ("random", 1.0)}
 
 
 def make_vectors(direction_path, hidden):
@@ -218,8 +218,8 @@ def calibrate(out, step0, direction_path):
         return float(np.mean(kls)), kls
 
     target, per_task = mean_kl(arm_body(2))
-    print(f"arm 2 (−d, 2 rounds): mean KL {target:.4f} over {len(per_task)} prompts × {KL_TOKENS} tokens", file=sys.stderr, flush=True)
-    others = {name: mean_kl(arm_body(a))[0] for a, name in ((3, "minus4"), (4, "plus2"), (5, "random2"))}
+    print(f"arm 2 (−d, 1 round): mean KL {target:.4f} over {len(per_task)} prompts × {KL_TOKENS} tokens", file=sys.stderr, flush=True)
+    others = {name: mean_kl(arm_body(a))[0] for a, name in ((3, "minus2"), (4, "plus1"), (5, "random1"))}
     print("other steered arms: " + ", ".join(f"{k} {v:.4f}" for k, v in others.items()), file=sys.stderr, flush=True)
     lo, hi, trail = 1.0, 4.0, []
     for _ in range(10):
