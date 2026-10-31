@@ -123,9 +123,12 @@ def cmd_nodes(args):
 def cmd_deploy(args):
     cat = find_catalog(args.gpu)
     cid = cat.get("id") or cat.get("catalogId")
-    nodes = entries(call("GET", f"/api/nodes/available?catalogId={cid}"))
+    listed = entries(call("GET", f"/api/nodes/available?catalogId={cid}"))
+    # The endpoint lists every machine of that model, busy ones included: only those with a free GPU can be deployed
+    # (the catalog's own "AVAILABLE" lags behind), so pick the cheapest machine that actually has one.
+    nodes = [n for n in listed if (n.get("availableGpus") if n.get("availableGpus") is not None else 1) > 0]
     if not nodes:
-        sys.exit(f"no machine available for {args.gpu} right now")
+        sys.exit(f"no free {args.gpu} right now ({len(listed)} machine(s), all busy); retry later or pick another GPU")
     nodes = sorted(nodes, key=lambda n: n.get("hourlyRate") or n.get("price") or 1e9)
     node = nodes[0]
     nid = node.get("id") or node.get("nodeId") or node.get("machineId")
