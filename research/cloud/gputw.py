@@ -213,7 +213,12 @@ def cmd_run(args):
     log = f"{REMOTE_ROOT}/logs/{name}.log"
     # setsid + /dev/null stdin so the ssh session returns at once instead of waiting on the job's inherited pipes.
     remote = f"cd {REMOTE_ROOT} && setsid nohup bash -lc {shlex.quote(' '.join(args.cmd))} > {log} 2>&1 < /dev/null & echo $! > {REMOTE_ROOT}/logs/{name}.pid; echo started $(cat {REMOTE_ROOT}/logs/{name}.pid) log {log}"
-    subprocess.run(ssh_base(args.id) + [remote], check=True)
+    # The gateway keeps the ssh session open while the detached job lives, so the call is cut off after a few
+    # seconds; the job survives (setsid), and its log and pid file say so.
+    try:
+        subprocess.run(ssh_base(args.id) + [remote], check=True, timeout=15)
+    except subprocess.TimeoutExpired:
+        print(f"started (session cut); log {log}", file=sys.stderr)
 
 
 def cmd_vault_upload(args):
