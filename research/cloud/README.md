@@ -31,6 +31,17 @@ $G stop <id>                                 # 停機就不計費；/workspace �
 - 實驗腳本用 `--backend torch` 時走 `torch_engine.py`；`--backend mlx`（預設）走原本的 `engine.py`。兩個後端的生成不是逐 token 相同（取樣實作不同），同一個研究不要混用。
 - API 文件沒寫的端點（取得單一執行個體、刪除）`gputw.py` 會試常見路徑並印出回應；失敗就去儀表板操作。
 
+## 批次與即時監控
+
+- 實驗腳本加 `--batch N`（只限 `--backend torch`）：所有軌跡同步往前走，每輪最多 N 條一起生成。每列各自的種子，所以一列的 token 不受同批其他列影響；每列先各自 prefill 再合併快取，避免左側填充滲進 Qwen3.5 的線性注意力層（實測兩個填充 token 就讓狀態偏到 cos 0.9995）。27B bf16 在 RTX Pro 6000 上：逐條 10–12 tok/s，批次 24 約 150–250 tok/s，GPU 被 500 W 功耗上限卡住。
+- 監控面板：引擎每秒把累計 token 寫到 `$ENGINE_METRICS`；`monitor.py` 在機器上讀它和 `nvidia-smi`，只聽 127.0.0.1。用 SSH 通道接回本機，不開任何公開連接埠：
+
+```bash
+ssh -f -N -L 8090:127.0.0.1:8090 -p 2222 pod-<id>@ssh.gputw.ai   # 然後開 http://localhost:8090
+```
+
+- 在機器上用 `pkill -f`／`pgrep -f` 找程序時，模式不能出現在自己的指令列裡（遠端 bash 的指令列包含整段指令，會把自己砍掉）；停程序用 PID，或把指令寫成腳本檔再執行。
+
 ## 本機煙霧測試（不用 GPU）
 
 ```bash
