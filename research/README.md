@@ -59,9 +59,24 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 
 | 文件 | 內容 |
 |---|---|
-| [experiment-log.md](experiment-log.md) | 所有實驗的筆記 |
+| [experiment-log.md](experiment-log.md) | 所有實驗的筆記，依時間排列 |
+| **預先登記** | |
+| [prereg-prediction-error.md](prereg-prediction-error.md) | 候選預測誤差訊號 |
+| [prereg-adrenaline.md](prereg-adrenaline.md) | 腎上腺素型功能狀態（急性壓力） |
+| [prereg-pressure.md](prereg-pressure.md) | 失敗歷史誘發的壓力狀態，步驟 0：存在性與殺死判準 |
+| [prereg-pressure-step1.md](prereg-pressure-step1.md) | 壓力狀態步驟 1：沿方向操縱與五個對照 |
+| **論文** | |
 | [paper-outline.md](paper-outline.md) | 論文大綱：狀態以激活目標傳遞而非提示文字；研究問題、相關研究、實驗計畫與完成度 |
+| [paper-draft.md](paper-draft.md) | 論文草稿 |
+| **方法與背景** | |
+| [math.md](math.md) | 用到的數學 |
+| [math-endogenous.md](math-endogenous.md) | 內生調節訊號：數學與實驗設計（修訂版） |
 | [2026-10-26-target-steering.md](2026-10-26-target-steering.md) | 從逐層相加到瞄準目標的激活操控：診斷、方法、15 次 sweep 的結果 |
+| [literature-2026-10.md](literature-2026-10.md) | 2026 年與本計畫相關的 LLM 研究 |
+| [direction-review-2026-10-30.md](direction-review-2026-10-30.md) | 方向整理：我們在做什麼、和誰重疊、什麼是新的 |
+| [codebase-map.md](codebase-map.md) | 2026-10-30 的程式庫地圖（搬遷前的路徑，見上面的對照表） |
+| **研究流程** | |
+| [adoptions.md](adoptions.md) | 她採用了哪些研究成果 |
 
 ## 資料格式
 
