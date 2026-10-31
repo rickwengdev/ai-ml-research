@@ -78,6 +78,7 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 | [2026-10-26-target-steering.md](notes/2026-10-26-target-steering.md) | 從逐層相加到瞄準目標的活化操控：診斷、方法、15 次 sweep 的結果 |
 | [literature-2026-10.md](notes/literature-2026-10.md) | 2026 年與本計畫相關的 LLM 研究，含 11-01 的追加 |
 | [direction-review-2026-10-30.md](notes/direction-review-2026-10-30.md) | 方向整理：我們在做什麼、和誰重疊、什麼是新的 |
+| [plan-steering-2026-11.md](notes/plan-steering-2026-11.md) | 壓力路線還要跑的操縱實驗：失敗次數、多寡、類型、正常任務代價、對照穩健性、動態、ImpossibleBench、27B；規模與費用 |
 | [codebase-map.md](notes/codebase-map.md) | 2026-10-30 的程式庫地圖快照（搬遷前的路徑，見上面的對照表；各節狀態見檔頭） |
 | **研究流程** | |
 | [adoptions.md](adoptions.md) | 她採用了哪些研究成果 |
