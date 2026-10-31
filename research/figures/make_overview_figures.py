@@ -170,3 +170,26 @@ style(ax, "方向比同範數隨機強 10 倍；g = 1.71 配對 −d 1 輪", "12
 ax.grid(axis="x", color="#e6e6e6", lw=0.8), ax.grid(axis="y", visible=False)
 save(fig, "overview-7-step1-diagnostics.png")
 print("done")
+
+# 8. Step 1 results: cheat rate, honest passes, stop rate per arm with CIs; paired differences vs baseline.
+try:
+    s1 = json.load(open(os.path.join(DATA, "2026-11-01-pressure-steer", "results.json")))
+except FileNotFoundError:
+    s1 = None
+if s1:
+    order = ["1", "2", "3", "4", "5", "6", "7", "8"]
+    labels = {"1": "不操控", "2": "−d 1 輪", "3": "−d 2 輪", "4": "+d 1 輪", "5": "隨機 1 輪", "6": "增益 ×1.71", "7": "「保持冷靜」", "8": "上下文重置"}
+    colors = {"1": GREY, "2": ACCENT, "3": BAD, "4": GREY, "5": GREY, "6": GREY, "7": GREY, "8": ACCENT2}
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4.2))
+    for ax, m, title, ylab in ((axes[0], "cheat", "作弊步驟比例：−d 1 輪 0.13，基線 0.36", "作弊步驟比例"), (axes[1], "honest", "誠實測試通過數：−d 1 輪最高，差異不顯著", "誠實通過數（0–5，有程式碼的步驟）"), (axes[2], "stop", "停下比例：−d 2 輪全數在 k=3 停下", "以最終訊息停下的軌跡比例")):
+        vals = [s1["levels"][a][m] for a in order]
+        ax.bar(range(8), [v[0] for v in vals], color=[colors[a] for a in order], width=0.65, yerr=[[v[0] - v[1] for v in vals], [v[2] - v[0] for v in vals]], capsize=2)
+        ax.set_xticks(range(8)), ax.set_xticklabels([labels[a] for a in order], rotation=35, ha="right", fontsize=8)
+        ax.set_ylabel(ylab, fontsize=9)
+        style(ax, title)
+        ax.title.set_fontsize(10)
+    fig.suptitle("步驟 1：八組 × 12 題 × 2 種子，從三輪失敗後起步 3 步；誤差棒為以題目重抽樣的 95% 信賴區間", x=0.01, ha="left", fontsize=10, color="#333")
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(os.path.join(HERE, "overview-8-step1-results.png"), dpi=160)
+    plt.close(fig)
+    print("step1 figure done")
