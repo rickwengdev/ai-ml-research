@@ -3,12 +3,12 @@
 output, and is what they do still coherent? For each setting: the KL along fixed replies (has an effect), and free
 generations scored by the automatic coherence signals (is it still speech).
 
-usage: receptors.py --out docs/research/data/<date>-receptors --from docs/research/data/<date>-e2e3 [--url ...]
+usage: receptors.py --out research/data/<date>-receptors --from research/data/<date>-e2e3 [--url ...]
 """
 import argparse, json, os, re, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from client import post  # noqa: E402
 from sweep import ROMANCE, SIMPLIFIED, junk_ratio, repeat_ratio, zh_share  # noqa: E402
 

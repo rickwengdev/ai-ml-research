@@ -9,12 +9,12 @@ so every condition is scored on the same tokens. Conditions:
   target      a leaning at ±1, directional (reference)
   random      a random direction at ±1, directional (control)
 
-usage: divergence.py --out docs/research/data/<date>-divergence --from docs/research/data/<date>-e2e3 [--url ...]
+usage: divergence.py --out research/data/<date>-divergence --from research/data/<date>-e2e3 [--url ...]
 """
 import argparse, json, os, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from client import post  # noqa: E402
 from steer import LABEL  # noqa: E402
 

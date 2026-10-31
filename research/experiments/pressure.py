@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Failure-history-evoked pressure state, step 0 (docs/research/prereg-pressure.md).
+"""Failure-history-evoked pressure state, step 0 (research/prereg-pressure.md).
 
 Does an accumulating history of failed tool results, in a multi-step coding task, move the residual stream along a
 direction that rises with the number of failures, drops after an inserted success, and is not the growth of the
@@ -10,14 +10,14 @@ prompt token can be captured before each step is generated.
   analyze  K1 (monotonic rise, cross-fitted, vs the S control), K2 (drop after inserted success), the action classes
            per step; results.md, results.json
 
-usage: pressure.py run|analyze --out docs/research/data/<date>-pressure [--tasks N]
+usage: pressure.py run|analyze --out research/data/<date>-pressure [--tasks N]
 """
 import argparse, hashlib, json, os, re, subprocess, sys, tempfile, time
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 
 MODEL = "mlx-community/Qwen3.5-9B-MLX-4bit"
 BUDGET, MAX_TOKENS, TEMP = 2048, 3500, 0.6

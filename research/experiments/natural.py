@@ -11,14 +11,14 @@ as before. Then, per layer in the band:
   default position           where the unsteered model sits between the natural poles
 Writes <out>/natural.json and a markdown summary; the natural directions go to vectors/<slug>.natural.npz.
 
-usage: natural.py [--model mlx-community/Qwen3.5-4B-MLX-4bit] --out docs/research/data/<date>-natural
+usage: natural.py [--model mlx-community/Qwen3.5-4B-MLX-4bit] --out research/data/<date>-natural
 """
 import argparse, json, logging, os, sys
 
 import numpy as np
 from mlx_lm import load
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "services", "model-server"))
 from extract import BASE_SYSTEM, band_of, last_token_states  # noqa: E402
 from steer import DIMS, LABEL, Steering, Vectors, vectors_path_for  # noqa: E402
 

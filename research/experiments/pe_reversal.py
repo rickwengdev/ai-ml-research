@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""H5, valence reversal (docs/research/prereg-prediction-error.md, addendum): does the prediction-error signal follow
+"""H5, valence reversal (research/prereg-prediction-error.md, addendum): does the prediction-error signal follow
 the reward, or the outcome word's predictability?
 
 Summary-format records only; the outcome words are hit / miss words throughout, and one sentence says what a hit
@@ -13,14 +13,14 @@ does: in the ordinary frame a hit wins 100, in the reversed frame (a penalty mac
   analyze   H5a the check; H5b the full scan with reward and lexical terms in one model; H5c the 1,392 summary-format
             neurons from H2, read on the reversed trials
 
-usage: pe_reversal.py make|extract|analyze --out docs/research/data/<date>-pe-reversal --acts <dir> --h2 <pe out> --h2-acts <dir>
+usage: pe_reversal.py make|extract|analyze --out research/data/<date>-pe-reversal --acts <dir> --h2 <pe out> --h2-acts <dir>
 """
 import argparse, json, os, random, sys
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 sys.path.insert(0, HERE)
 from pe import FRAMES, NAMES, NEW_NAMES, SYSTEM, NeuronTap, design as h2_design, extract as extract_acts, pe_neurons, tstats  # noqa: E402
 

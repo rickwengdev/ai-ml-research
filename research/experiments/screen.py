@@ -16,12 +16,12 @@ or −1 (endocrine.py "clamp"), so the draw is one fixed gain pattern and its op
              If selected draws beat the controls on held-out prompts, the screen found structure; if not, it found
              noise.
 
-usage: screen.py --out docs/research/data/<date>-screen [--draws 48] [--scale 4] [--validate --top 6]
+usage: screen.py --out research/data/<date>-screen [--draws 48] [--scale 4] [--validate --top 6]
 """
 import argparse, json, os, random, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from client import get, post  # noqa: E402
 from steer import DIMS, LABEL  # noqa: E402
 from extract import BASE_SYSTEM  # noqa: E402

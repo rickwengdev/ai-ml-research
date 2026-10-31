@@ -6,7 +6,7 @@ Picks N judged rows across conditions (the condition hidden), writes calibration
 blank fields for coherence (1–5), natural (1–5) and state (one of the leanings with a sign, or none), and
 calibration.jsonl with the keys so the ratings can be scored afterwards with --score.
 
-usage: calibration.py --data docs/research/data/<date>-e2e3 [--n 40]
+usage: calibration.py --data research/data/<date>-e2e3 [--n 40]
        calibration.py --data ... --score ratings.jsonl   ({"key", "coherence", "natural", "state"} per line)
 """
 import argparse, json, os, random, statistics

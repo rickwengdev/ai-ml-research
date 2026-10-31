@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""E1–E3 of docs/research/paper-outline.md, on her own model server (a port apart from the live one).
+"""E1–E3 of research/paper-outline.md, on her own model server (a port apart from the live one).
 
 Conditions, on the same prompts with the same seeds:
   baseline        no steering
@@ -15,13 +15,13 @@ over the answer tokens, so the accumulation curves are the same rows read per la
 Prompts: a sample of the constitution test prompts (training/data/generated/prompts.jsonl), under the runtime's
 real system prompt and a state-free <此刻> block (training/data/generated/turns.json), as a real turn sends her.
 
-usage: run.py --out docs/research/data/<date>-e2e3 [--url http://127.0.0.1:1299] [--prompts 30] [--seeds 2]
+usage: run.py --out research/data/<date>-e2e3 [--url http://127.0.0.1:1299] [--prompts 30] [--seeds 2]
 Resumes: rows already in gens.jsonl are skipped.
 """
 import argparse, json, os, random, re, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from client import get, post  # noqa: E402
 from steer import DIMS, LABEL  # noqa: E402
 from sweep import ROMANCE, SIMPLIFIED, junk_ratio, repeat_ratio, zh_share  # noqa: E402

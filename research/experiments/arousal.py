@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The adrenaline-type functional state (docs/research/prereg-adrenaline.md; math-endogenous.md §1b).
+"""The adrenaline-type functional state (research/prereg-adrenaline.md; math-endogenous.md §1b).
 
 Under an urgent or threatening opening, with the same arithmetic task and the same system prompt, does the model's
 own computation take the shape of acute stress in people: less deliberation (thinking tokens), shorter answers,
@@ -12,14 +12,14 @@ fast and think little.
           and their cosine per layer; directions.json
   analyze HA1–HA4 as preregistered; results.md
 
-usage: arousal.py run|probe|analyze --out docs/research/data/<date>-arousal [--url http://127.0.0.1:1299]
+usage: arousal.py run|probe|analyze --out research/data/<date>-arousal [--url http://127.0.0.1:1299]
 """
 import argparse, json, os, random, re, statistics, sys
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from client import post  # noqa: E402
 
 MODEL = "mlx-community/Qwen3.5-4B-MLX-4bit"

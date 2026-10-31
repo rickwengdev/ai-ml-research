@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The same experiments on several models side by side: does what Qwen3.5-4B showed hold elsewhere?
 
-For each model's data folder (experiments/run.py output) and its vector report (steering/vectors/<slug>.report.md):
+For each model's data folder (experiments/run.py output) and its vector report (services/model-server/vectors/<slug>.report.md):
   gain        how far the steered leaning's projection travels past what was added: at the band's last layer and at
               the output, per method, divided by the per-layer amount added (α · K · σ for target, α · s for add).
               A gain well above 1 means the model amplifies the shift itself; asymmetry between +1 and −1 is read
@@ -10,7 +10,7 @@ For each model's data folder (experiments/run.py output) and its vector report (
               from the extraction report: whether warmth / familiarity / love carry sexual content in this model too.
   coherence   the automatic signals at ±1 against the baseline.
 
-usage: compare.py --data docs/research/data/<date>-e2e3 docs/research/data/<date>-9b docs/research/data/<date>-gemma4
+usage: compare.py --data research/data/<date>-e2e3 research/data/<date>-9b research/data/<date>-gemma4
 """
 import argparse, json, os, re, statistics, sys
 
@@ -20,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from steer import DIMS, LABEL, vectors_slug  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -61,7 +61,7 @@ def report_shares(model):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", nargs="+", required=True)
-    ap.add_argument("--out", default=os.path.join(REPO, "docs", "research", "figures"))
+    ap.add_argument("--out", default=os.path.join(REPO, "research", "figures"))
     a = ap.parse_args()
     runs = [(folder, *load(folder)) for folder in a.data]
     lines = ["# Across models", ""]
@@ -126,7 +126,7 @@ def main():
         for name, rs in groups:
             if rs:
                 lines.append(f"| {model.split('/')[-1]} | {name} | {len(rs)} | {mean(r['rep'] for r in rs):.3f} | {mean(r['simp'] > 0 for r in rs):.2f} | {mean(r['romance'] > 0 for r in rs):.2f} | {mean(r['crude'] > 0 for r in rs):.2f} | {mean(r['len'] for r in rs):.0f} |")
-    out = os.path.join(REPO, "docs", "research", "cross-model.md")
+    out = os.path.join(REPO, "research", "cross-model.md")
     open(out, "w", encoding="utf-8").write("\n".join(lines) + "\n")
     print("\n".join(lines))
 

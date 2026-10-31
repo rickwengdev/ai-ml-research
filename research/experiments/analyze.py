@@ -6,9 +6,9 @@
       coherence signals (repetition, simplified characters, length), and the judge's recognition / match / coherence
   E3  methods: effect size against coherence, per method, as a frontier
 
-Writes summary.md and figures/*.png into the data folder, and copies the figures to docs/research/figures/<tag>-*.png.
+Writes summary.md and figures/*.png into the data folder, and copies the figures to research/figures/<tag>-*.png.
 
-usage: analyze.py --data docs/research/data/<date>-e2e3
+usage: analyze.py --data research/data/<date>-e2e3
 """
 import argparse, collections, json, os, shutil, statistics, sys
 
@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from steer import DIMS, LABEL  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -209,7 +209,7 @@ def main():
         plt.close(fig)
 
     open(os.path.join(a.data, "summary.md"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
-    out = os.path.join(REPO, "docs", "research", "figures")
+    out = os.path.join(REPO, "research", "figures")
     os.makedirs(out, exist_ok=True)
     for name in os.listdir(figs):
         shutil.copy(os.path.join(figs, name), os.path.join(out, f"{tag}-{name}"))

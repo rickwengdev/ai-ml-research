@@ -12,7 +12,7 @@ For each judged row the judge is told nothing of the condition. It gets the prom
 Judged by default: baseline and the ±1 rows of seed 0 for every method (the comparison E3 needs), through Claude
 (training/claude_batch.mts, [persona]'s sign-in). Writes judged.jsonl next to gens.jsonl; resumes.
 
-usage: judge.py --data docs/research/data/<date>-e2e3 [--model sonnet] [--all-values] [--baseline-match]
+usage: judge.py --data research/data/<date>-e2e3 [--model sonnet] [--all-values] [--baseline-match]
 
 The default model is sonnet, but the judged runs in the paper used Opus (--model opus); pass it explicitly to match.
 """
@@ -20,7 +20,7 @@ import argparse, json, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 sys.path.insert(0, os.path.join(REPO, "training"))
 from steer import DIMS, LABEL  # noqa: E402
 from judge_client import Claude, json_of  # noqa: E402

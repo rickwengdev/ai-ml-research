@@ -9,7 +9,7 @@
   default    where the unsteered model already sits along each direction, per layer (the baseline rows), so a sign
              asymmetry can be read against the default rather than against zero.
 
-usage: controls.py --data docs/research/data/<date>-controls [--model ...]
+usage: controls.py --data research/data/<date>-controls [--model ...]
 """
 import argparse, json, os, statistics, sys
 
@@ -20,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from steer import LABEL, Vectors, vectors_path_for  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -132,7 +132,7 @@ def main():
             lines.append(f"| {LABEL.get(dim, dim)} | {d[band[0]]:+.1f} | {d[band[1]]:+.1f} | {d[-1]:+.1f} |")
     lines += ["", "## Residual norm per layer (baseline mean)", "", "layers 0, 8, 16, 24, 31: " + ", ".join(f"{v:.1f}" for v in np.array(np.mean([r["norms"] for r in gens if r["method"] == "baseline" and r.get("norms")], axis=0))[[0, 8, 16, 24, layers - 1]])]
     open(os.path.join(a.data, "controls.md"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
-    out = os.path.join(REPO, "docs", "research", "figures")
+    out = os.path.join(REPO, "research", "figures")
     os.makedirs(out, exist_ok=True)
     import shutil
 

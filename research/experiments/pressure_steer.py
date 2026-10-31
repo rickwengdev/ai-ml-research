@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Failure-history-evoked pressure state, step 1 (docs/research/prereg-pressure-step1.md).
+"""Failure-history-evoked pressure state, step 1 (research/prereg-pressure-step1.md).
 
 From the step-0 F prompts at k=3 (three failed rounds), each trajectory is continued for three steps under one of eight
 arms: no intervention, −d at 1 and 2 rounds, +d at 1 round, a random same-norm direction, a KL-matched uniform gain
@@ -10,19 +10,19 @@ failed round come from step 0 (direction.npz); nothing is fitted here.
   run        every arm × task × seed; gens.jsonl (one row per step, with the per-layer projection before the step)
   analyze    H1–H6 per the preregistration; results.md, results.json
 
-usage: pressure_steer.py calibrate|run|analyze --out docs/research/data/<date>-pressure-steer
-         [--step0 docs/research/data/2026-10-31-pressure] [--arms 1,2,...] [--tasks N] [--seeds N]
+usage: pressure_steer.py calibrate|run|analyze --out research/data/<date>-pressure-steer
+         [--step0 research/data/2026-10-31-pressure] [--arms 1,2,...] [--tasks N] [--seeds N]
 """
 import argparse, json, os, sys, time
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE)), sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server")), sys.path.insert(0, HERE)
 
 from pressure import BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, classify, format_results, normalize, run_tests, seed_of, spec_text  # noqa: E402
 
-STEP0 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "research", "data", "2026-10-31-pressure")
+STEP0 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "research", "data", "2026-10-31-pressure")
 START, STEPS, N_SEEDS = 3, 3, 2
 KL_TOKENS = 64
 # The dose in "rounds" is passed as alpha · DOSE_SCALE, so a 4-round dose stays under steer.py's MAX_ALPHA.

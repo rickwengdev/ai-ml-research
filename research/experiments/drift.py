@@ -5,12 +5,12 @@ unsteered. Her replies' projections along the leanings (from the forward-pass tr
 per turn. If guard stays raised in the neutral turns after the hostile ones, the model's own context already holds
 the state: an inertia to extend rather than a state to invent.
 
-usage: drift.py --out docs/research/data/<date>-drift [--url ...] [--seeds 8]
+usage: drift.py --out research/data/<date>-drift [--url ...] [--seeds 8]
 """
 import argparse, json, os, statistics, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server"))
 from client import get, post  # noqa: E402
 from steer import DIMS, LABEL  # noqa: E402
 
