@@ -42,6 +42,41 @@ ssh -f -N -L 8090:127.0.0.1:8090 -p 2222 pod-<id>@ssh.gputw.ai   # 然後開 htt
 
 - 在機器上用 `pkill -f`／`pgrep -f` 找程序時，模式不能出現在自己的指令列裡（遠端 bash 的指令列包含整段指令，會把自己砍掉）；停程序用 PID，或把指令寫成腳本檔再執行。
 
+## 備用：Google Cloud（`gcp.py`）
+
+GPUtw 沒機或出問題時用。指令和 GPUtw 那套一樣（`sync`、`run`、`backup`、`tunnel`），VM 上的路徑也一樣（`/vault/work` 放程式、結果、日誌，`/workspace` 放 venv 和權重），所以 `bootstrap.sh`、實驗指令、`monitor.py` 都不用改。全部透過本機的 `gcloud`。
+
+一次性準備：
+
+1. **用獨立的專案**，例如 `ai-ml-research`，把有 credit 的帳單帳戶掛上去。`gcp.py` 不會用 gcloud 的預設專案，每次都要 `--project` 或 `RESEARCH_GCP_PROJECT`。
+2. **免費試用帳戶不能開 GPU**，要先把帳單帳戶升級成付費（credit 仍然先扣）。新專案的 `GPUS_ALL_REGIONS` 配額是 0，要到 IAM & Admin › Quotas 申請（可能幾分鐘到幾天，也可能被拒）。`gcp.py quota --region us-central1` 看目前的額度。
+3. 建 /vault 用的永久磁碟（只放程式與結果，50 GB 約每月 5 美元）：`gcp.py vault-create --zone <zone>`。磁碟是區域性的，VM 要開在同一個 zone。
+
+一輪實驗：
+
+```bash
+G="services/model-server/.venv/bin/python research/cloud/gcp.py"
+export RESEARCH_GCP_PROJECT=ai-ml-research
+$G prices                                    # 各 GPU 的大約價格，以及 80 美元夠跑幾小時
+$G zones --gpu rtx6000                       # 哪些 zone 有 RTX PRO 6000
+$G create research-g4 --gpu rtx6000 --zone <zone> --hours 6 --spot --yes   # 印出估價，沒有 --yes 不會建
+$G ssh research-g4 -- nvidia-smi               # 第一次開機會裝驅動，等幾分鐘
+$G sync research-g4
+$G run research-g4 --job bootstrap -- bash /vault/work/research/cloud/bootstrap.sh Qwen/Qwen3.5-27B
+$G run research-g4 --job step1-27b -- /workspace/venv/bin/python research/experiments/pressure_steer.py run --backend torch --model Qwen/Qwen3.5-27B --batch 24 --out research/data/<日期>-pressure-steer-27b
+$G tunnel research-g4                          # 監控面板，the research UI 的 GPU 頁也讀這裡
+$G backup research-g4 --every 300              # 跑的期間定期把結果拉回本機
+$G delete research-g4                          # 用完刪掉：停機的 VM 開機碟仍在計費；/vault 的磁碟保留
+```
+
+要記得的事：
+
+- GPU 規格：`rtx6000`（g4-standard-48，96 GB，27B bf16 可批次 24）、`a100-80`（a2-ultragpu-1g，27B bf16 但批次要降到 12 左右）、`a100-40`、`l4`（只夠 9B）。
+- `--hours` 必填：VM 到時間會自己停（`--max-run-duration`）。`--spot` 約半價，但 Google 隨時可能收回；實驗腳本能續跑，重開一台、`sync`、`run` 同一個指令即可。
+- 價格是 2026-11 的大約值（官方頁面與第三方追蹤），只用來在建立前估價；Spot 隨區域和時間浮動。
+- 映像是 Deep Learning VM 的 `pytorch-2-9-cu129-ubuntu-2204-nvidia-580`（PyTorch 2.9、CUDA 12.9、驅動 580，支援 Blackwell）。Google 會淘汰舊的映像家族，`gcp.py images` 列出目前有的，建立前也會先檢查。
+- 權重放在開機碟（`/workspace/hf`），每台重新下載。
+
 ## 本機煙霧測試（不用 GPU）
 
 ```bash

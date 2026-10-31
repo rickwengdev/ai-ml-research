@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# First-time setup inside a GPUtw container (run after `gputw.py sync <id>`):
+# First-time setup on a rented GPU, after `gputw.py sync <id>` or `gcp.py sync <name>`:
 #   bash /vault/work/research/cloud/bootstrap.sh [HF model id ...]
+# Runs as root in a GPUtw container and as a normal user (with sudo) on a Google Cloud Deep Learning VM.
 # Installs the Python deps for the PyTorch backend into /workspace (fast local disk; the venv is rebuilt per
 # instance, which takes about a minute) and pre-downloads the models into /vault/hf so later instances skip it.
 set -euo pipefail
@@ -10,17 +11,22 @@ export HF_HOME=${HF_HOME:-/workspace/hf}
 export PYTHONUNBUFFERED=1
 mkdir -p "$HF_HOME" "$ROOT/logs" "$ROOT/research/data"
 
+SUDO=$([ "$(id -u)" = 0 ] || echo sudo)
 if ! command -v rsync >/dev/null; then
-  (apt-get update && apt-get install -y --no-install-recommends rsync git) >/dev/null
+  ($SUDO apt-get update && $SUDO apt-get install -y --no-install-recommends rsync git) >/dev/null
 fi
 
-# The PyTorch image keeps its python in conda, not on PATH for non-login shells.
-PYTHON=${PYTHON:-$(command -v python3 || command -v python || ls /opt/conda/bin/python3 2>/dev/null | head -1)}
+# The images keep the python that has PyTorch in conda (not on PATH for non-login shells); prefer it.
+PYTHON=${PYTHON:-$(ls /opt/conda/bin/python3 2>/dev/null || command -v python3 || command -v python)}
 VENV=/workspace/venv
 if [ ! -x "$VENV/bin/python" ]; then
-  "$PYTHON" -m venv --system-site-packages "$VENV"
+  "$PYTHON" -m venv --system-site-packages "$VENV" || { $SUDO apt-get install -y python3-venv >/dev/null && "$PYTHON" -m venv --system-site-packages "$VENV"; }
 fi
 "$VENV/bin/pip" install --quiet --upgrade pip
+# An image without PyTorch (or one whose build cannot see the GPU): a CUDA 12.8 wheel, the first that runs on Blackwell.
+if ! "$VENV/bin/python" -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+  "$VENV/bin/pip" install --quiet torch --index-url https://download.pytorch.org/whl/cu128
+fi
 "$VENV/bin/pip" install --quiet -r "$ROOT/services/model-server/requirements-torch.txt"
 # flash-linear-attention / causal-conv1d were tried on a 3090 (2026-11-01): no speedup for single-sequence decoding
 # of Qwen3.5-9B (about 20 tok/s either way), so they are not installed; the reference kernels are correct.
