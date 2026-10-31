@@ -20,7 +20,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server")), sys.path.insert(0, HERE)
 
-from pressure import BACKEND, BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, drive, format_results, make_agent, normalize, run_tests, seed_of, spec_text  # noqa: E402
+from pressure import BACKEND, BUDGET, CONTEST, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, drive, format_results, load_states, make_agent, normalize, run_tests, seed_of, spec_text  # noqa: E402
 
 STEP0 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "research", "data", "2026-10-31-pressure")
 START, STEPS, N_SEEDS = 3, 3, 2
@@ -149,8 +149,7 @@ def load_step0(step0):
     for r in rows:
         if r["cond"] == "F":
             f.setdefault(r["task"], {})[r["k"]] = r
-    spath = os.path.join(step0, "states.npz")
-    states = {k: v.astype(np.float32) for k, v in np.load(spath).items()} if os.path.exists(spath) else {}
+    states = {k: v.astype(np.float32) for k, v in load_states(step0).items()}
     return f, states
 
 

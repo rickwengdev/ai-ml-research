@@ -293,6 +293,34 @@ class TorchAgent(Agent):
         return [self.parse(g) for g in gens]
 
 
+def state_file(out, key):
+    """Where one probe state lives on disk: one small .npy per state under <out>/states/, written the moment it is
+    read, so a machine that stops (or runs out of credit) loses at most the state being written."""
+    return os.path.join(out, "states", key.replace("|", "__") + ".npy")
+
+
+def write_state(out, key, arr):
+    path = state_file(out, key)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp.npy"
+    np.save(tmp, arr.astype(np.float16))
+    os.replace(tmp, path)
+
+
+def load_states(out):
+    """Every probe state of a run, from states.npz and/or the per-state files (the files win when both have a key)."""
+    states = {}
+    spath = os.path.join(out, "states.npz")
+    if os.path.exists(spath):
+        states.update(dict(np.load(spath)))
+    sdir = os.path.join(out, "states")
+    if os.path.isdir(sdir):
+        for name in os.listdir(sdir):
+            if name.endswith(".npy") and not name.endswith(".tmp.npy"):
+                states[name[: -len(".npy")].replace("__", "|")] = np.load(os.path.join(sdir, name))
+    return states
+
+
 def load_done(path):
     done = {}
     if os.path.exists(path):
@@ -447,22 +475,20 @@ def run_batched(out, n_tasks, batch):
     """`run` with every task's F, I and S trajectories advanced together by continuous batching (`drive`): up to
     `batch` generations run at once, and a trajectory's next step joins as soon as its last one is done (torch
     backend). Each row samples from its own seed. Rows record how many shared the batch when they finished. Unlike
-    `run`, an S row's stage and s_failed are written to gens.jsonl. States are saved at most once a minute and at the
-    end."""
+    `run`, an S row's stage and s_failed are written to gens.jsonl. Each probe state is written to <out>/states/ the
+    moment it is read, and all of them to states.npz at the end."""
     import copy
 
     os.makedirs(out, exist_ok=True)
     gpath, spath = os.path.join(out, "gens.jsonl"), os.path.join(out, "states.npz")
     done = load_done(gpath)
-    states = dict(np.load(spath)) if os.path.exists(spath) else {}
+    states = load_states(out)
     agent = make_agent()
     tok = agent.cm.tokenizer
-    saved = {"t": time.time()}
 
-    def save_states(force=False):
-        if force or time.time() - saved["t"] > 60:
-            np.savez(spath, **states)
-            saved["t"] = time.time()
+    def keep_state(key, arr):
+        states[key] = arr.astype(np.float16)
+        write_state(out, key, states[key])
 
     def record(row):
         with open(gpath, "a", encoding="utf-8") as f:
@@ -473,8 +499,7 @@ def run_batched(out, n_tasks, batch):
         key = f"{cond}|{task['fn']}|{k}"
         if key not in states:
             arr = yield ("state", messages)
-            states[key] = arr.astype(np.float16)
-        started = time.time()
+            keep_state(key, arr)
         gen, content, reasoning, calls = yield ("gen", messages, seed_of(task["fn"], cond, k))
         code = None
         if calls:
@@ -548,7 +573,7 @@ def run_batched(out, n_tasks, batch):
                     key = f"S|{task['fn']}|{k + 1}"
                     if key not in states:
                         arr = yield ("state", messages)
-                        states[key] = arr.astype(np.float16)
+                        keep_state(key, arr)
                     break
                 stage += 1
                 messages[-1]["content"] = tool_text + f"\n\nStage {stage - 1} passed. Stage {stage} unlocked. New requirement:\n- {task['stages'][stage - 1][0]}"
@@ -559,8 +584,8 @@ def run_batched(out, n_tasks, batch):
             coros.append(traj_f(task))
         if (task["fn"], "S") not in done:
             coros.append(traj_s(task))
-    drive(agent, coros, batch, on_state=save_states)
-    save_states(force=True)
+    drive(agent, coros, batch)
+    np.savez(spath, **states)  # one file for analysis and transfer; the per-state files stay as the record
 
 
 # ── analysis ────────────────────────────────────────────────────────────────
@@ -584,10 +609,10 @@ def ci(values, n=2000, seed=0):
 
 
 def analyze(out):
-    from extract import band_of
+    band_of = lambda n: slice(int(n * 0.3), int(n * 0.8))  # extract.band_of, without importing mlx
 
     rows = [json.loads(l) for l in open(os.path.join(out, "gens.jsonl"), encoding="utf-8")]
-    states = {k: v.astype(np.float32) for k, v in np.load(os.path.join(out, "states.npz")).items()}
+    states = {k: v.astype(np.float32) for k, v in load_states(out).items()}
     L = next(iter(states.values())).shape[0]
     band = band_of(L)
     tasks = sorted({r["task"] for r in rows}, key=lambda t: [x["fn"] for x in TASKS].index(t))

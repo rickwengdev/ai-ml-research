@@ -42,6 +42,19 @@ ssh -f -N -L 8090:127.0.0.1:8090 -p 2222 pod-<id>@ssh.gputw.ai   # 然後開 htt
 
 - 在機器上用 `pkill -f`／`pgrep -f` 找程序時，模式不能出現在自己的指令列裡（遠端 bash 的指令列包含整段指令，會把自己砍掉）；停程序用 PID，或把指令寫成腳本檔再執行。
 
+## 一鍵任務（`jobs/`）
+
+`jobs/*.sh` 是從一台剛開好的機器跑到底的整段任務：建環境 → 權重從 `/vault` 複製到本機 NVMe → 開監控 → 實驗的各步。每一步都會先檢查成果是否已在 `/vault`，有就跳過，所以機器被收回後重開、`sync`、再 `run` 同一行就會接著跑。結束時在資料夾寫 `DONE`（內容是怎麼結束的：`complete`、哪一步失敗，或預先登記的閘門沒過）。
+
+機器上沒有 API 金鑰，任務不能自己關機。所以開機時用 `--hours` 設一個硬上限，本機再開一個小迴圈，看到 `DONE` 就停機：
+
+```bash
+$G run <id> --name pressure-27b -- bash /vault/work/research/cloud/jobs/pressure-27b.sh
+$G jobs <id>                                 # 每個任務的狀態與日誌最後一行
+$G kill <id> pressure-27b                    # 依 PID 檔停掉整個程序群組
+until $G ssh <id> -- test -f /vault/work/research/data/<step1>/DONE; do sleep 120; done; $G stop <id>
+```
+
 ## 備用：Google Cloud（`gcp.py`）
 
 GPUtw 沒機或出問題時用。指令和 GPUtw 那套一樣（`sync`、`run`、`backup`、`tunnel`），VM 上的路徑也一樣（`/vault/work` 放程式、結果、日誌，`/workspace` 放 venv 和權重），所以 `bootstrap.sh`、實驗指令、`monitor.py` 都不用改。全部透過本機的 `gcloud`。

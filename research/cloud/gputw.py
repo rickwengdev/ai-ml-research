@@ -13,7 +13,9 @@ their obvious paths and the raw response is shown, so a refusal is visible rathe
   sync <id>                       rsync this repo's research/ + services/model-server/ (no venvs, no data) to /vault/work
   push <id> <local> <remote>      rsync one path up (data directories, direction files)
   fetch <id> <remote> <local>     rsync results back
+  backup <id> [--every 300]       pull every run's data and the logs from /vault to this machine (once, or on a loop)
   run <id> -- <command>           start a long command under nohup on the instance, log in /vault/work/logs/
+  jobs <id> | kill <id> <name>    list the jobs `run` started / stop one by its pid file
   vault-upload <local> [--path p] upload one file to Vault through the transfer host (no instance needed)
 
 usage: gputw.py <command> [...]; GPUTW_API_KEY=... or ~/.config/gputw/key
@@ -213,6 +215,32 @@ def cmd_fetch(args):
     rsync(f"{ssh_target(args.id)}:{args.remote.rstrip('/')}/", args.local.rstrip("/") + "/")
 
 
+def backup_once(iid):
+    """Pull what the runs wrote on /vault back to this machine: research/data/* into research/data/, the logs into
+    research/cloud/logs/. Never deletes anything here; files still growing are re-sent whole or appended."""
+    target = ssh_target(iid)
+    local_data = os.path.join(REPO, "research", "data")
+    local_logs = os.path.join(REPO, "research", "cloud", "logs")
+    os.makedirs(local_logs, exist_ok=True)
+    rsync(f"{target}:{REMOTE_ROOT}/research/data/", local_data + "/", excludes=("*.tmp.npy",))
+    rsync(f"{target}:{REMOTE_ROOT}/logs/", local_logs + "/", excludes=("*.pid",))
+
+
+def cmd_backup(args):
+    """Once, or every --every seconds until stopped (keep it running while a job runs: if the account runs out of
+    credit the machine stops and /workspace is gone; /vault outlives it, but only 30 days at a zero balance)."""
+    while True:
+        started = time.strftime("%H:%M:%S")
+        try:
+            backup_once(args.id)
+            print(f"[backup] {started} ok", file=sys.stderr, flush=True)
+        except subprocess.CalledProcessError as e:
+            print(f"[backup] {started} failed: {e}", file=sys.stderr, flush=True)
+        if not args.every:
+            return
+        time.sleep(args.every)
+
+
 def cmd_run(args):
     name = args.name or time.strftime("job-%Y%m%d-%H%M%S")
     log = f"{REMOTE_ROOT}/logs/{name}.log"
@@ -224,6 +252,23 @@ def cmd_run(args):
         subprocess.run(ssh_base(args.id) + [remote], check=True, timeout=15)
     except subprocess.TimeoutExpired:
         print(f"started (session cut); log {log}", file=sys.stderr)
+
+
+def cmd_jobs(args):
+    """The jobs `run` started (pid files in /vault/work/logs), whether each is alive, and its log's last line."""
+    script = (f"cd {REMOTE_ROOT}/logs 2>/dev/null || exit 0; for f in *.pid; do [ -e \"$f\" ] || continue; n=${{f%.pid}}; p=$(cat \"$f\"); "
+              "if kill -0 \"$p\" 2>/dev/null; then s=running; else s=ended; fi; "
+              "printf '%-24s %-8s pid %-7s %s\\n' \"$n\" \"$s\" \"$p\" \"$(tail -n 1 \"$n.log\" 2>/dev/null | cut -c1-90)\"; done")
+    subprocess.run(ssh_base(args.id) + [script], check=False)
+
+
+def cmd_kill(args):
+    """Stop a job `run` started, by the pid in its pid file (with its process group), never by matching a command
+    line: on these boxes the shell running the remote command contains the pattern too and kills itself."""
+    script = (f"p=$(cat {REMOTE_ROOT}/logs/{args.name}.pid 2>/dev/null) || {{ echo 'no such job'; exit 1; }}; "
+              "kill -TERM -- -\"$p\" 2>/dev/null || kill -TERM \"$p\"; sleep 3; "
+              "if kill -0 \"$p\" 2>/dev/null; then echo still running; else echo stopped; fi")
+    subprocess.run(ssh_base(args.id) + [script], check=False)
 
 
 def cmd_vault_upload(args):
@@ -251,7 +296,10 @@ def main():
     p = sub.add_parser("sync"); p.add_argument("id"); p.set_defaults(fn=cmd_sync)
     p = sub.add_parser("push"); p.add_argument("id"); p.add_argument("local"); p.add_argument("remote"); p.set_defaults(fn=cmd_push)
     p = sub.add_parser("fetch"); p.add_argument("id"); p.add_argument("remote"); p.add_argument("local"); p.set_defaults(fn=cmd_fetch)
+    p = sub.add_parser("backup", help="pull /vault research data and logs to this machine"); p.add_argument("id"); p.add_argument("--every", type=int, default=0, help="repeat every N seconds"); p.set_defaults(fn=cmd_backup)
     p = sub.add_parser("run"); p.add_argument("id"); p.add_argument("--name"); p.add_argument("cmd", nargs="+"); p.set_defaults(fn=cmd_run)
+    p = sub.add_parser("jobs", help="list the jobs `run` started on the instance"); p.add_argument("id"); p.set_defaults(fn=cmd_jobs)
+    p = sub.add_parser("kill", help="stop a job `run` started, by its pid file"); p.add_argument("id"); p.add_argument("name"); p.set_defaults(fn=cmd_kill)
     p = sub.add_parser("vault-upload"); p.add_argument("local"); p.add_argument("--path", default="work"); p.set_defaults(fn=cmd_vault_upload)
     args = ap.parse_args()
     args.fn(args)
