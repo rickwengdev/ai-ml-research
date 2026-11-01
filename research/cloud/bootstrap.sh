@@ -29,7 +29,12 @@ if ! "$VENV/bin/python" -c "import torch, sys; sys.exit(0 if torch.cuda.is_avail
 fi
 "$VENV/bin/pip" install --quiet -r "$ROOT/services/model-server/requirements-torch.txt"
 # flash-linear-attention / causal-conv1d were tried on a 3090 (2026-11-01): no speedup for single-sequence decoding
-# of Qwen3.5-9B (about 20 tok/s either way), so they are not installed; the reference kernels are correct.
+# of Qwen3.5-9B (about 20 tok/s either way), so they are not installed by default; the reference kernels are correct.
+# Prompt reads (chunked linear attention over thousands of tokens) are where they could matter: jobs/bench.sh
+# measures it, and ENGINE_FLA=1 installs the Triton kernels (no compile) once that says they help.
+if [ "${ENGINE_FLA:-0}" = 1 ]; then
+  "$VENV/bin/pip" install --quiet flash-linear-attention || echo "flash-linear-attention did not install; the reference kernels stay"
+fi
 
 "$VENV/bin/python" - <<'EOF'
 import torch

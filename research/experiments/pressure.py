@@ -378,6 +378,13 @@ def load_done(path):
 def write_run_info(out):
     """Which model and backend produced this folder, for the analysis header (gens.jsonl rows do not carry it)."""
     info = {"backend": BACKEND["kind"], "model": BACKEND["model"] or MODEL, "dtype": BACKEND["dtype"] if BACKEND["kind"] == "torch" else "mlx 4-bit"}
+    if BACKEND["kind"] == "torch":
+        import importlib.util
+
+        # How prompts were read: from the prompt store (continuing earlier reads) or whole, and with which kernels.
+        # Neither changes what is computed beyond floating-point order (torch_engine.PromptStore).
+        info["engine"] = {"prompt_store_gb": os.environ.get("ENGINE_PROMPT_STORE_GB", "auto"),
+                          "flash_linear_attention": importlib.util.find_spec("fla") is not None}
     with open(os.path.join(out, "run.json"), "w", encoding="utf-8") as fh:
         json.dump(info, fh, ensure_ascii=False, indent=1)
 
@@ -508,10 +515,17 @@ def run(out, n_tasks):
 
 def drive(agent, coros, max_batch, on_state=None):
     """Advance trajectory coroutines with continuous batching. A coroutine yields ("state", messages) to read the
-    residual at the end of a prompt (done at once, alone) and ("gen", messages, seed[, extra]) to generate; a
-    generation joins the running batch as soon as it is asked for, and its coroutine resumes the moment that row
-    finishes, so one slow trajectory never holds the others. `on_state` is called after each state read (to save)."""
+    residual at the end of a prompt (alone) and ("gen", messages, seed[, extra]) to generate; a generation joins the
+    running batch as soon as it is asked for, and its coroutine resumes the moment that row finishes, so one slow
+    trajectory never holds the others. `on_state` is called after each state read (to save).
+
+    State reads wait, in order, until the batch has room for the generation that follows them: the read leaves the
+    prompt in the engine's prompt store and the generation continues from it, so the prompt is read once, not twice
+    (reading every waiting prompt up front would fill the store before any of them is generated)."""
+    import collections
+
     batcher = agent.batcher(max_batch)
+    waiting = collections.deque()
 
     def feed(coro, value):
         while True:
@@ -520,10 +534,8 @@ def drive(agent, coros, max_batch, on_state=None):
             except StopIteration:
                 return
             if request[0] == "state":
-                value = agent.states([request[1]])[0]
-                if on_state:
-                    on_state()
-                continue
+                waiting.append((coro, request[1]))
+                return
             messages, seed = request[1], request[2]
             extra = request[3] if len(request) > 3 else None
             batcher.submit(coro, agent.body(messages, seed, extra))
@@ -531,7 +543,13 @@ def drive(agent, coros, max_batch, on_state=None):
 
     for coro in coros:
         feed(coro, None)
-    while len(batcher):
+    while len(batcher) or waiting:
+        while waiting and len(batcher) < max_batch:
+            coro, messages = waiting.popleft()
+            value = agent.states([messages])[0]
+            if on_state:
+                on_state()
+            feed(coro, value)
         for coro, gen in batcher.step():
             feed(coro, agent.parse(gen))
 

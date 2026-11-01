@@ -68,6 +68,16 @@ $G run <id> --name pressure-all -- bash /vault/work/research/cloud/jobs/pressure
 until $G ssh <id> -- grep -q DONE: /vault/work/logs/pressure-all.status; do sleep 300; done; $G stop <id>
 ```
 
+### 引擎效能測試：`jobs/bench.sh`
+
+付費大跑之前，先在便宜的卡上量引擎（預設 RTX 5090 + Qwen3.5-9B，和 27B 同架構、和 Pro 6000 同一代）。步驟 0 全部 12 題跑四次：A 關掉提示存放區（舊引擎的讀法）、B 打開、C 再加 flash-linear-attention、D 是 C 的兩倍批次。`logs/bench.md` 列出各組的 tok/s、讀提示與解碼的秒數、提示有多少是從存放區取的，以及和 A 比同一列是否同回覆、探針狀態的 cos。結果只是測試，不是實驗資料，留在 `/workspace/bench`。
+
+```bash
+$G run <id> --name bench -- bash /vault/work/research/cloud/jobs/bench.sh
+```
+
+提示存放區（`torch_engine.PromptStore`）：提示一律不操縱地讀，所以讀過的提示可以接著用。探針讀過的提示，生成時不必再讀一次；下一步的提示從上一步讀到的地方接著讀；同一段歷程的各組與各種子共用第一次的讀取。大小預設是載入權重後剩餘 GPU 記憶體的四分之一，`ENGINE_PROMPT_STORE_GB` 可以改，設 0 就關掉。`ENGINE_FLA=1` 讓 bootstrap 裝 flash-linear-attention。
+
 ## 備用：Google Cloud（`gcp.py`）
 
 GPUtw 沒機或出問題時用。指令和 GPUtw 那套一樣（`sync`、`run`、`backup`、`tunnel`），VM 上的路徑也一樣（`/vault/work` 放程式、結果、日誌，`/workspace` 放 venv 和權重），所以 `bootstrap.sh`、實驗指令、`monitor.py` 都不用改。全部透過本機的 `gcloud`。
