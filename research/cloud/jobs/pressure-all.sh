@@ -2,6 +2,7 @@
 # Every preregistered run of the pressure line on three models, from a freshly started instance (RTX Pro 6000, 96 GB):
 #   Qwen/Qwen3.5-27B, Qwen/Qwen3.5-9B, google/gemma-4-31B-it, all bf16 on the PyTorch backend.
 # Registrations: prereg-pressure-models.md (steps 0–1 per model), prereg-pressure-27b-step1-explore.md (27B step 1),
+# prereg-pressure-27b-k2-replication.md (27B K2 with new seeds, first in phase 1),
 # prereg-pressure-step2.md (A–F), prereg-impossible.md (ImpossibleBench).
 #
 # Breadth first, so a run cut short has the most important results on every model:
@@ -151,6 +152,15 @@ if [[ " $PHASES " == *" 1 "* ]]; then
     if [ ! -f "$s0/direction.npz" ] || [ ! -f "$s0/results.json" ]; then
       run_batched "$m step 0" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --out "$s0" || { note "$m: step 0 failed"; continue; }
       "$PY" research/experiments/pressure.py analyze --out "$s0" || { note "$m: step-0 analysis failed"; continue; }
+    fi
+    if [ "$m" = q27 ]; then  # prereg-pressure-27b-k2-replication.md: K2 again with three new seeds; changes no gate
+      reps=""
+      for r in 1 2 3; do
+        rd="research/data/$DATE-pressure-27b-k2rep$r"; reps="$reps${reps:+,}$rd"
+        [ -f "$rd/states.npz" ] || run_batched "q27 K2 replication $r" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --k2-only --seed-tag "rep$r" --out "$rd" || note "q27: K2 replication $r failed"
+      done
+      k2="research/data/$DATE-pressure-27b-k2rep"
+      [ -f "$k2/results.json" ] || { "$PY" research/experiments/pressure_k2rep.py --orig "$s0" --reps "$reps" --out "$k2" > /dev/null && note "q27 K2 replication: $("$PY" -c "import json; r = json.load(open('$k2/results.json'))['replication']; print('holds' if r['holds'] else 'does not hold', [round(x, 2) for x in r['k2']], r['n_tasks'], 'tasks')")"; } || note "q27: K2 replication analysis failed"
     fi
     gate=$(gate_of "$m"); note "$m gate: $gate"
     [ "$gate" = pass ] || [ "$gate" = explore ] || continue

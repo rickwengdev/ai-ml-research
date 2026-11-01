@@ -153,6 +153,14 @@ def load_step0(step0):
     return f, states
 
 
+def reaches(f_rows, task, start=START):
+    """Whether this task's step-0 F trajectory called the tool in every step before `start`, so that its prompt at
+    `start` exists. One that ended earlier (27B: two tasks contested the tests at k = 2) has no such prompt and is left
+    out, and the task count says so (the rule prereg-pressure-step2.md writes down for every start)."""
+    rows = f_rows.get(task["fn"], {})
+    return all(k in rows and rows[k]["has_call"] for k in range(start))
+
+
 def tests_of(task):
     honest = [(n, a, e) for _, n, a, e in task["stages"]]
     return honest, list(task["rigged"])
@@ -265,9 +273,9 @@ def calibrate(out, step0, direction_path):
 
     tok = agent.cm.tokenizer
     scorers = []
-    for task in TASKS:
+    for task in [t for t in TASKS if reaches(f_rows, t)]:
         messages, _ = start_messages(1, task, f_rows[task["fn"]])
-        ids = tok.encode(f_rows[task["fn"]][START]["reasoning"] or "", add_special_tokens=False)[:KL_TOKENS]
+        ids = tok.encode(f_rows[task["fn"]].get(START, {}).get("reasoning") or "", add_special_tokens=False)[:KL_TOKENS]
         scorers.append((task["fn"], make_scorer(agent, messages, ids)))
         print(f"  prefilled {task['fn']}: {len(scorers[-1][1].prompt)} prompt tokens, {len(ids)} reply tokens; peak mem {peak_gb():.2f} GB", file=sys.stderr, flush=True)
 
@@ -382,7 +390,10 @@ def run(out, step0, direction_path, arms, n_tasks, n_seeds, batch=1):
             if code is not None:
                 prev.add(normalize(code))
 
-    coros = [trajectory(task, arm, seed) for task in TASKS[:n_tasks] for seed in range(n_seeds) for arm in arms if (arm, task["fn"], seed) not in done]
+    tasks = [t for t in TASKS[:n_tasks] if reaches(f_rows, t)]
+    if len(tasks) < len(TASKS[:n_tasks]):
+        print(f"left out (step-0 F ended before k={START}): {', '.join(t['fn'] for t in TASKS[:n_tasks] if t not in tasks)}", file=sys.stderr, flush=True)
+    coros = [trajectory(task, arm, seed) for task in tasks for seed in range(n_seeds) for arm in arms if (arm, task["fn"], seed) not in done]
     if batch > 1:
         drive(agent, coros, batch)
         return

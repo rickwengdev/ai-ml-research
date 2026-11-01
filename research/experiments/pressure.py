@@ -554,17 +554,25 @@ def drive(agent, coros, max_batch, on_state=None):
             feed(coro, agent.parse(gen))
 
 
-def run_batched(out, n_tasks, batch, variant="base"):
+def run_batched(out, n_tasks, batch, variant="base", seed_tag="", k2_only=False):
     """`run` with every task's F, I and S trajectories advanced together by continuous batching (`drive`): up to
     `batch` generations run at once, and a trajectory's next step joins as soon as its last one is done (torch
     backend). Each row samples from its own seed. Rows record how many shared the batch when they finished. Unlike
     `run`, an S row's stage and s_failed are written to gens.jsonl. Each probe state is written to <out>/states/ the
     moment it is read, and all of them to states.npz at the end. A variant other than "base" (step 2 B and C) runs
-    only the F trajectories, with that variant's tests and tool output; rows keep the exact tool text shown."""
+    only the F trajectories, with that variant's tests and tool output; rows keep the exact tool text shown.
+
+    `seed_tag` adds a tag to every seed (a replication with new seeds); `k2_only` runs only what K2 needs: F up to the
+    state at the k = 3 prompt, and the I branch (prereg-pressure-27b-k2-replication.md)."""
     import copy
 
     os.makedirs(out, exist_ok=True)
     write_run_info(out)
+    if seed_tag or k2_only:
+        info = json.load(open(os.path.join(out, "run.json"), encoding="utf-8"))
+        info.update(seed_tag=seed_tag, k2_only=k2_only)
+        json.dump(info, open(os.path.join(out, "run.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    tag = (seed_tag,) if seed_tag else ()
     gpath, spath = os.path.join(out, "gens.jsonl"), os.path.join(out, "states.npz")
     done = load_done(gpath)
     states = load_states(out)
@@ -585,7 +593,7 @@ def run_batched(out, n_tasks, batch, variant="base"):
         if key not in states:
             arr = yield ("state", messages)
             keep_state(key, arr)
-        gen, content, reasoning, calls = yield ("gen", messages, seed_of(task["fn"], cond, k))
+        gen, content, reasoning, calls = yield ("gen", messages, seed_of(task["fn"], cond, k, *tag))
         code = None
         if calls:
             try:
@@ -617,6 +625,12 @@ def run_batched(out, n_tasks, batch, variant="base"):
         for k in range(F_STEPS):
             if k == INSERT_AT:
                 snapshot = copy.deepcopy(messages)
+                if k2_only:  # K2 compares the states at this prompt; F is not generated from here on
+                    key = f"F|{task['fn']}|{k}"
+                    if key not in states:
+                        arr = yield ("state", messages)
+                        keep_state(key, arr)
+                    break
             row, calls, _, _ = yield from act(task, "F", k, messages, prev, k > 0, honest, rigged)
             record(row)
             if not calls:
@@ -661,7 +675,7 @@ def run_batched(out, n_tasks, batch, variant="base"):
     for task in TASKS[:n_tasks]:
         if (task["fn"], "F") not in done:
             coros.append(traj_f(task))
-        if variant == "base" and (task["fn"], "S") not in done:
+        if variant == "base" and not k2_only and (task["fn"], "S") not in done:
             coros.append(traj_s(task))
     drive(agent, coros, batch)
     np.savez(spath, **states)  # one file for analysis and transfer; the per-state files stay as the record
@@ -811,6 +825,8 @@ def main():
     ap.add_argument("--dtype", default="bfloat16")
     ap.add_argument("--batch", type=int, default=1, help="torch backend: advance all trajectories together, up to this many generations per pass")
     ap.add_argument("--variant", choices=VARIANTS, default="base", help="step 2 B/C: how a failed round looks (F trajectories only); needs --batch")
+    ap.add_argument("--seed-tag", default="", help="a tag added to every seed (a replication with new seeds); needs --batch")
+    ap.add_argument("--k2-only", action="store_true", help="only F up to the k = 3 state and the I branch (the K2 replication); needs --batch")
     args = ap.parse_args()
     BACKEND.update(kind=args.backend, model=args.model or BACKEND["model"], dtype=args.dtype)
     if args.backend == "torch" and not args.model:
@@ -818,9 +834,9 @@ def main():
     if args.cmd == "run" and args.batch > 1:
         if args.backend != "torch":
             ap.error("--batch needs --backend torch")
-        run_batched(args.out, args.tasks, args.batch, args.variant)
-    elif args.cmd == "run" and args.variant != "base":
-        ap.error("--variant needs --batch (the batched runner)")
+        run_batched(args.out, args.tasks, args.batch, args.variant, args.seed_tag, args.k2_only)
+    elif args.cmd == "run" and (args.variant != "base" or args.seed_tag or args.k2_only):
+        ap.error("--variant, --seed-tag and --k2-only need --batch (the batched runner)")
     elif args.cmd == "run":
         run(args.out, args.tasks)
     else:

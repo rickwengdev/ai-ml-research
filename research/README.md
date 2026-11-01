@@ -72,6 +72,7 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 | [prereg-pressure-step1.md](prereg/prereg-pressure-step1.md) | 壓力狀態步驟 1：沿方向操控與五組對照 |
 | [prereg-pressure-27b.md](prereg/prereg-pressure-27b.md) | 壓力狀態步驟 2：在 Qwen3.5-27B bf16 上重做步驟 0 與 1 |
 | [prereg-pressure-27b-step1-explore.md](prereg/prereg-pressure-27b-step1-explore.md) | 27B 的 K2 不成立後，步驟 1 的探索性操縱 |
+| [prereg-pressure-27b-k2-replication.md](prereg/prereg-pressure-27b-k2-replication.md) | 27B 的 K2 以 3 個新種子重做：不成立是否穩定（不改原判定） |
 | [prereg-pressure-models.md](prereg/prereg-pressure-models.md) | 步驟 0 與 1 在 Gemma 4 31B 與 Qwen3.5-9B（bf16）上；各模型的閘門 |
 | [prereg-pressure-step2.md](prereg/prereg-pressure-step2.md) | 壓力狀態步驟 2（A–F）：失敗次數、劑量、多寡、類型、正常任務代價、對照穩健性與封頂、動態 |
 | [prereg-impossible.md](prereg/prereg-impossible.md) | 方向在 ImpossibleBench（Impossible-LiveCodeBench oneoff）上的轉移，對照 Meek et al. |
