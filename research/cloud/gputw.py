@@ -214,8 +214,24 @@ def rsync(src, dst, excludes=()):
     subprocess.run(cmd, check=True)
 
 
+# rsync on the instance, which a fresh container lacks. apt cannot run on some nodes (dpkg fails with "Invalid
+# cross-device link"), so then the packages are unpacked under /opt/rsync and a wrapper goes on the PATH. Never unpack
+# over /: tar replaces the /lib symlink with a directory and every program on the box stops starting.
+ENSURE_RSYNC = r"""command -v rsync >/dev/null && exit 0
+export DEBIAN_FRONTEND=noninteractive
+(apt-get update -qq && apt-get install -y -qq --no-install-recommends rsync) >/dev/null 2>&1
+command -v rsync >/dev/null && exit 0
+set -e
+d=$(mktemp -d); cd "$d"; apt-get download rsync libpopt0 libxxhash0 >/dev/null
+mkdir -p /opt/rsync; for p in *.deb; do dpkg-deb -x "$p" /opt/rsync; done
+printf '#!/bin/sh\nLD_LIBRARY_PATH=/opt/rsync/usr/lib/x86_64-linux-gnu:/opt/rsync/lib/x86_64-linux-gnu exec /opt/rsync/usr/bin/rsync "$@"\n' > /usr/local/bin/rsync
+chmod +x /usr/local/bin/rsync
+rsync --version | sed -n 1p"""
+
+
 def cmd_sync(args):
     target = ssh_target(args.id)
+    subprocess.run(ssh_base(args.id) + ["bash -c " + shlex.quote(ENSURE_RSYNC)], check=True)
     subprocess.run(ssh_base(args.id) + [f"mkdir -p {REMOTE_ROOT}/research {REMOTE_ROOT}/services/model-server {REMOTE_ROOT}/logs"], check=True)
     rsync(os.path.join(REPO, "services", "model-server") + "/", f"{target}:{REMOTE_ROOT}/services/model-server/", excludes=(".venv", ".venv-torch", "__pycache__", "vectors/*.npz"))
     rsync(os.path.join(REPO, "research") + "/", f"{target}:{REMOTE_ROOT}/research/", excludes=("data", "subjects", "figures/*.png", "__pycache__", ".venv*"))

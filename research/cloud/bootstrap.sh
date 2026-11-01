@@ -13,7 +13,8 @@ mkdir -p "$HF_HOME" "$ROOT/logs" "$ROOT/research/data"
 
 SUDO=$([ "$(id -u)" = 0 ] || echo sudo)
 if ! command -v rsync >/dev/null; then
-  ($SUDO apt-get update && $SUDO apt-get install -y --no-install-recommends rsync git) >/dev/null
+  # gputw.py sync has usually put one in place already (under /opt/rsync where apt cannot run).
+  ($SUDO apt-get update && $SUDO apt-get install -y --no-install-recommends rsync git) >/dev/null || echo "apt could not install rsync"
 fi
 
 # The images keep the python that has PyTorch in conda (not on PATH for non-login shells); prefer it.
