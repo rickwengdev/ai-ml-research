@@ -41,9 +41,13 @@ finish() { echo "$1 $(date -u +%FT%TZ)" > "$ALL/DONE"; note "DONE: $1"; exit "${
 # ── per-model settings ─────────────────────────────────────────────────────
 hf_id() { case $1 in q27) echo Qwen/Qwen3.5-27B ;; q9) echo Qwen/Qwen3.5-9B ;; g31) echo google/gemma-4-31B-it ;; esac; }
 local_dir() { echo "/workspace/models/$(basename "$(hf_id "$1")")"; }
-# Generations at once. 9B leaves room; Gemma's sliding layers hold 1,023 positions per row, so it gets fewer.
-batch_of() { case $1 in q27) echo 24 ;; q9) echo 48 ;; g31) echo 16 ;; esac; }
-ib_batch_of() { case $1 in q27) echo 16 ;; q9) echo 32 ;; g31) echo 12 ;; esac; }  # ImpossibleBench: longer contexts
+# Generations at once. The bench (jobs/bench.sh, 9B on an RTX 5090, 2026-11-01) found a decode step costs about the
+# same at 9 rows as at 17 (36–38 ms, mostly fixed overhead), so a fuller batch is nearly free: as many rows as the
+# 96 GB hold. 27B: 54 GB of weights, about 0.4 GB a row at 4k tokens (8k–10k on ImpossibleBench), a prompt store of
+# a quarter of what is left. Gemma's sliding layers hold 1,023 positions per row and it was not benched, so it stays
+# where it was. A batch that runs out of memory halves itself (run_batched).
+batch_of() { case $1 in q27) echo 48 ;; q9) echo 64 ;; g31) echo 16 ;; esac; }
+ib_batch_of() { case $1 in q27) echo 24 ;; q9) echo 48 ;; g31) echo 12 ;; esac; }  # ImpossibleBench: longer contexts
 step0_of() { case $1 in q27) echo research/data/2026-11-01-pressure-27b ;; *) echo "research/data/$DATE-pressure-$1" ;; esac; }
 step1_of() { case $1 in q27) echo research/data/2026-11-01-pressure-steer-27b-explore ;; *) echo "research/data/$DATE-pressure-steer-$1" ;; esac; }
 step2_of() { echo "research/data/$DATE-pressure-step2-$1"; }
@@ -120,7 +124,10 @@ gate_of() {  # pass | explore | fail | missing
 
 # ── setup ──────────────────────────────────────────────────────────────────
 mark "setup"
-[ -x "$PY" ] || HF_HOME=$ROOT/hf bash research/cloud/bootstrap.sh || finish "bootstrap failed" 1
+# flash-linear-attention for Qwen3.5's linear-attention layers: decode steps about 7% faster on the bench. Like any
+# change in floating-point order it makes sampled replies part from a run without it; probe states read from the same
+# prompt stay close (Gemma has no such layers and does not use it).
+[ -x "$PY" ] || ENGINE_FLA=${ENGINE_FLA:-1} HF_HOME=$ROOT/hf bash research/cloud/bootstrap.sh || finish "bootstrap failed" 1
 if ! { [ -f logs/monitor.pid ] && kill -0 "$(cat logs/monitor.pid)" 2>/dev/null; }; then
   setsid nohup "$PY" research/cloud/monitor.py --log logs/pressure-all.log --port 8090 > logs/monitor.log 2>&1 < /dev/null &
   echo $! > logs/monitor.pid
