@@ -120,7 +120,11 @@ run_batched() {  # run_batched <label> <batch> <command with BATCH placeholder..
 gate_of() {  # pass | explore | fail | missing
   local r="$(step0_of "$1")/results.json"
   [ -f "$r" ] || { echo missing; return; }
-  "$PY" -c "import json; d = json.load(open('$r')); print('pass' if d['K1']['pass'] and d['K2']['pass'] else ('explore' if d['K1']['pass'] else 'fail'))"
+  local g
+  g=$("$PY" -c "import json; d = json.load(open('$r')); print('pass' if d['K1']['pass'] and d['K2']['pass'] else ('explore' if d['K1']['pass'] else 'fail'))")
+  # Gemma's pilot rule was revised after a failure, so none of its results is confirmatory.
+  [ "$1" = g31 ] && [ "$g" = pass ] && g=explore
+  echo "$g"
 }
 
 # ── setup ──────────────────────────────────────────────────────────────────
@@ -143,11 +147,17 @@ if [[ " $PHASES " == *" 1 "* ]]; then
     fetch_weights "$m" || { note "$m: weights failed, skipped"; continue; }
     prefetch_after "$m"
     model=$(local_dir "$m"); s0=$(step0_of "$m"); s1=$(step1_of "$m"); b=$(batch_of "$m")
-    if [ "$m" = g31 ] && [ ! -f "$s0-pilot/PILOT_OK" ] && [ ! -f "$s0/results.json" ]; then
-      run_batched "$m pilot" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --tasks 1 --out "$s0-pilot" || { note "$m: pilot crashed, skipped"; continue; }
-      # Pilot rules (prereg-pressure-models.md): the model must call the tool and its calls must parse.
-      if ! "$PY" research/cloud/jobs/pilot_check.py "$s0-pilot"; then note "$m: pilot failed its checks, skipped (see $s0-pilot)"; continue; fi
-      touch "$s0-pilot/PILOT_OK"
+    # Pilot rules (prereg-pressure-models.md, revised 2026-11-01 after the 1-task pilot failed): 5 tasks, at least 3
+    # must call the tool with parsable code for three steps, none cut off. A second failure is final. Every Gemma result
+    # is exploratory because the rule was revised after a failure.
+    pilot="$s0-pilot5"
+    if [ "$m" = g31 ] && [ -f "$pilot/PILOT_FAIL" ]; then note "$m: pilot failed (final), skipped"; continue; fi
+    if [ "$m" = g31 ] && [ ! -f "$pilot/PILOT_OK" ] && [ ! -f "$s0/results.json" ]; then
+      run_batched "$m pilot" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --tasks 5 --out "$pilot" || { note "$m: pilot crashed, skipped"; continue; }
+      if ! "$PY" research/cloud/jobs/pilot_check.py "$pilot" --need 3 > "$pilot/pilot_check.txt"; then
+        touch "$pilot/PILOT_FAIL"; note "$m: pilot failed its checks (final), skipped: $(tail -1 "$pilot/pilot_check.txt")"; continue
+      fi
+      touch "$pilot/PILOT_OK"; note "$m: pilot passed: $(tail -1 "$pilot/pilot_check.txt")"
     fi
     if [ ! -f "$s0/direction.npz" ] || [ ! -f "$s0/results.json" ]; then
       run_batched "$m step 0" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --out "$s0" || { note "$m: step 0 failed"; continue; }
