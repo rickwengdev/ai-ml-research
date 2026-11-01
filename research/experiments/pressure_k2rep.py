@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The K2 replication on 27B with new seeds (research/prereg/prereg-pressure-27b-k2-replication.md).
+"""K2 again with new seeds: 27B (research/prereg/prereg-pressure-27b-k2-replication.md) and Gemma 4 31B, whose pilot
+runs are the same protocol (prereg-pressure-models.md, 2026-11-01).
 
 The directions are the original step-0 run's, fixed: for task t, the leave-t-out direction fitted on the original F
 and clean S trajectories, exactly as pressure.analyze fits it. Each replication folder (pressure.py run --k2-only
@@ -98,8 +99,8 @@ def main():
            "I_next_action": actions, "band": [band.start, band.stop]}
     os.makedirs(args.out, exist_ok=True)
     json.dump(res, open(os.path.join(args.out, "results.json"), "w"), indent=1, ensure_ascii=False)
-    md = [f"# 27B 的 K2 重做（{model_label(reps[0]) if reps else '—'}）", "",
-          "登記：`prereg-pressure-27b-k2-replication.md`。方向固定用原次步驟 0 的留一題交叉擬合；k2 = band 平均[(狀態(I, k=3) − 狀態(F, k=3)) · u]。以題重抽 2,000 次。原判定（K2 不成立、27B 為探索性）不因這裡的結果改變。", "",
+    md = [f"# K2 新種子重做（{model_label(reps[0]) if reps else '—'}）", "",
+          "登記：`prereg-pressure-27b-k2-replication.md`（27B）、`prereg-pressure-models.md` 修改紀錄（Gemma）。方向固定用原次步驟 0 的留一題交叉擬合；k2 = band 平均[(狀態(I, k=3) − 狀態(F, k=3)) · u]。以題重抽 2,000 次。原判定與探索性標記不因這裡的結果改變。", "",
           "| | K2 | 題數 |", "|---|---|---|",
           f"| **重做（主要）**，{len(seeds)} 個種子、每題先平均 | **{fmt(rep_ci)}** → {'成立' if holds else '不成立'} | {res['replication']['n_tasks']}（{res['replication']['pairs']} 對） |",
           f"| 原次（1 個種子） | {fmt(res['original']['k2'])} | {len(original)} |",

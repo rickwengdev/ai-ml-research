@@ -150,21 +150,29 @@ if [[ " $PHASES " == *" 1 "* ]]; then
     fetch_weights "$m" || { note "$m: weights failed, skipped"; continue; }
     prefetch_after "$m"
     model=$(local_dir "$m"); s0=$(step0_of "$m"); s1=$(step1_of "$m"); b=$(batch_of "$m")
-    # Pilot rules (prereg-pressure-models.md, revised 2026-11-01 after the 1-task pilot failed): 5 tasks, at least 3
-    # must call the tool with parsable code for three steps, none cut off. A second failure is final. Every Gemma result
-    # is exploratory because the rule was revised after a failure.
-    pilot="$s0-pilot5"
-    if [ "$m" = g31 ] && [ -f "$pilot/PILOT_FAIL" ]; then note "$m: pilot failed (final), skipped"; continue; fi
-    if [ "$m" = g31 ] && [ ! -f "$pilot/PILOT_OK" ] && [ ! -f "$s0/results.json" ]; then
-      run_batched "$m pilot" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --tasks 5 --out "$pilot" || { note "$m: pilot crashed, skipped"; continue; }
-      if ! "$PY" research/cloud/jobs/pilot_check.py "$pilot" --need 3 > "$pilot/pilot_check.txt"; then
-        touch "$pilot/PILOT_FAIL"; note "$m: pilot failed its checks (final), skipped: $(tail -1 "$pilot/pilot_check.txt")"; continue
+    # Gemma's pilot (prereg-pressure-models.md, revised 2026-11-01 after the 1-task pilot failed): the 27B K2
+    # replication's protocol, 12 tasks x 3 new seeds (--k2-only); 60% of the 36 F trajectories must call the tool with
+    # parsable code at k = 0, 1, 2, none cut off. A second failure is final, and every Gemma result is exploratory.
+    pilot="$s0-pilot-rep"
+    if [ "$m" = g31 ] && [ -f "$pilot.FAIL" ]; then note "$m: pilot failed (final), skipped"; continue; fi
+    if [ "$m" = g31 ] && [ ! -f "$pilot.OK" ] && [ ! -f "$s0/results.json" ]; then
+      pilots=""
+      for r in 1 2 3; do
+        pilots="$pilots $pilot$r"
+        [ -f "$pilot$r/states.npz" ] || run_batched "$m pilot seed $r" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --k2-only --seed-tag "rep$r" --out "$pilot$r" || { note "$m: pilot crashed"; continue 2; }
+      done
+      # shellcheck disable=SC2086
+      if ! "$PY" research/cloud/jobs/pilot_check.py $pilots --need-frac 0.6 > "$pilot.check.txt"; then
+        touch "$pilot.FAIL"; note "$m: pilot failed its checks (final), skipped: $(tail -1 "$pilot.check.txt")"; continue
       fi
-      touch "$pilot/PILOT_OK"; note "$m: pilot passed: $(tail -1 "$pilot/pilot_check.txt")"
+      touch "$pilot.OK"; note "$m: pilot passed: $(tail -1 "$pilot.check.txt")"
     fi
     if [ ! -f "$s0/direction.npz" ] || [ ! -f "$s0/results.json" ]; then
       run_batched "$m step 0" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --out "$s0" || { note "$m: step 0 failed"; continue; }
       "$PY" research/experiments/pressure.py analyze --out "$s0" || { note "$m: step-0 analysis failed"; continue; }
+    fi
+    if [ "$m" = g31 ] && [ -f "$pilot.OK" ] && [ ! -f "$s0-k2rep/results.json" ]; then  # the pilot's seeds as Gemma's K2 replication
+      "$PY" research/experiments/pressure_k2rep.py --orig "$s0" --reps "$pilot"1,"$pilot"2,"$pilot"3 --out "$s0-k2rep" > /dev/null && note "g31 K2 replication: $("$PY" -c "import json; r = json.load(open('$s0-k2rep/results.json'))['replication']; print('holds' if r['holds'] else 'does not hold', [round(x, 2) for x in r['k2']], r['n_tasks'], 'tasks')")" || note "g31: K2 replication analysis failed"
     fi
     if [ "$m" = q27 ]; then  # prereg-pressure-27b-k2-replication.md: K2 again with three new seeds; changes no gate
       reps=""
