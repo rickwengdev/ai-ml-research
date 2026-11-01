@@ -138,6 +138,10 @@ def cmd_deploy(args):
     if not nodes:
         sys.exit(f"no free {args.gpu} right now ({len(listed)} machine(s), all busy); retry later or pick another GPU")
     nodes = sorted(nodes, key=lambda n: n.get("hourlyRate") or n.get("price") or 1e9)
+    if args.node:  # a machine picked by id or hostname (e.g. one with fast Vault, or not the one that just failed)
+        nodes = [n for n in nodes if args.node in (n.get("id", ""), str(n.get("hostname", "")).lstrip("#"))]
+        if not nodes:
+            sys.exit(f"node {args.node} has no free {args.gpu}")
     node = nodes[0]
     nid = node.get("id") or node.get("nodeId") or node.get("machineId")
     # Model weights go to the instance disk: /vault writes at a few MB/s (measured 6 MB/s direct), /workspace at GB/s.
@@ -350,7 +354,8 @@ def main():
     sub.add_parser("balance").set_defaults(fn=cmd_balance)
     p = sub.add_parser("deploy"); p.add_argument("--gpu", required=True, help='substring of the catalog name, e.g. "RTX 5090" or "PRO 6000"')
     p.add_argument("--image", default=DEFAULT_IMAGE); p.add_argument("--hours", type=float, default=12, help="auto-stop after this many hours")
-    p.add_argument("--bandwidth", type=int, default=100); p.add_argument("--env", action="append", help="KEY=VALUE for the container"); p.add_argument("--dry-run", action="store_true"); p.set_defaults(fn=cmd_deploy)
+    p.add_argument("--bandwidth", type=int, default=100); p.add_argument("--env", action="append", help="KEY=VALUE for the container"); p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--node", help="deploy on this machine (id or hostname without #) instead of the cheapest free one"); p.set_defaults(fn=cmd_deploy)
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
     p = sub.add_parser("get"); p.add_argument("id"); p.set_defaults(fn=cmd_get)
     p = sub.add_parser("stop"); p.add_argument("id"); p.set_defaults(fn=cmd_stop)
