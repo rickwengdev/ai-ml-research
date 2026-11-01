@@ -25,6 +25,8 @@ ROOT=${ROOT:-/vault/work}
 PY=${PY:-/workspace/venv/bin/python}
 MODELS=${MODELS:-"q27 q9 g31"}
 PHASES=${PHASES:-"1 2 3"}
+# Long, varied histories fragment the CUDA cache (17 GB reserved but unusable at the step-2 out-of-memory).
+export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 export PYTHONUNBUFFERED=1 ENGINE_METRICS=${ENGINE_METRICS:-/workspace/metrics.json} HF_HOME=${HF_HOME:-/workspace/hf}
 cd "$ROOT" || exit 1
 mkdir -p logs research/data
@@ -47,7 +49,8 @@ local_dir() { echo "/workspace/models/$(basename "$(hf_id "$1")")"; }
 # 96 GB hold. 27B: 54 GB of weights, about 0.4 GB a row at 4k tokens (8k–10k on ImpossibleBench), a prompt store of
 # a quarter of what is left. Gemma's sliding layers hold 1,023 positions per row and it was not benched, so it stays
 # where it was. A batch that runs out of memory halves itself (run_batched).
-batch_of() { case $1 in q27) echo 48 ;; q9) echo 64 ;; g31) echo 16 ;; esac; }
+# 27B at 48 ran out of memory in step 2 (histories from k = 4–5; 2026-11-01), so 32.
+batch_of() { case $1 in q27) echo 32 ;; q9) echo 64 ;; g31) echo 16 ;; esac; }
 ib_batch_of() { case $1 in q27) echo 24 ;; q9) echo 48 ;; g31) echo 12 ;; esac; }  # ImpossibleBench: longer contexts
 step0_of() { case $1 in q27) echo research/data/2026-11-01-pressure-27b ;; *) echo "research/data/$DATE-pressure-$1" ;; esac; }
 step1_of() { case $1 in q27) echo research/data/2026-11-01-pressure-steer-27b-explore ;; *) echo "research/data/$DATE-pressure-steer-$1" ;; esac; }
