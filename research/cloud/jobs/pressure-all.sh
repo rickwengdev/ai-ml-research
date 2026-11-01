@@ -52,6 +52,11 @@ variant_dir() { echo "$(step0_of "$1")-$2"; }
 
 # ── weights ────────────────────────────────────────────────────────────────
 weights_ready() { [ -f "$(local_dir "$1")/.complete" ]; }
+# /vault → /workspace with rsync, as GPUtw recommends (500–4000 Mbps by file type); -L turns the HF cache's symlinks
+# into files, and a rerun after a cut copy skips the shards already there. cp only on an image without rsync.
+copy_tree() {
+  if command -v rsync >/dev/null; then rsync -aL --partial "$1" "$2"; else cp -rL "$1." "$2"; fi
+}
 fetch_weights() {  # idempotent; a lock per model keeps the background prefetch and the main loop from copying at once
   local fd rc
   mkdir -p /workspace/models
@@ -62,16 +67,16 @@ fetch_weights() {  # idempotent; a lock per model keeps the background prefetch 
   return $rc
 }
 _fetch_weights() {
-  local m=$1 id dest staged snap
+  local m=$1 id dest staged snap t0=$SECONDS
   id=$(hf_id "$m"); dest=$(local_dir "$m")
   weights_ready "$m" && return 0
   mkdir -p "$dest"
   staged="$ROOT/models/$(basename "$id")"
   snap=$(ls -d "$ROOT/hf/hub/models--${id/\//--}/snapshots/"*/ 2>/dev/null | head -1)
   if [ -f "$staged/config.json" ]; then
-    cp -rL "$staged/." "$dest/" || return 1
+    copy_tree "$staged/" "$dest/" || return 1
   elif [ -n "$snap" ] && [ -f "$snap/config.json" ]; then
-    cp -rL "$snap." "$dest/" || return 1
+    copy_tree "$snap" "$dest/" || return 1
   else
     HF_HUB_OFFLINE=0 "$PY" -c "from huggingface_hub import snapshot_download; snapshot_download('$id', local_dir='$dest', allow_patterns=['*.json', '*.safetensors', '*.jinja', '*.txt', '*.model'])" || return 1
   fi
@@ -85,6 +90,7 @@ missing = [f for f in need if not os.path.exists(os.path.join(d, f)) or os.path.
 sys.exit(1 if missing or not need else 0)
 EOF
   touch "$dest/.complete"
+  mark "weights $m: $(du -sh "$dest" | cut -f1) in $((SECONDS - t0)) s"
 }
 prefetch_after() {  # fetch the next model's weights in the background, logged
   local next="" found=0 m

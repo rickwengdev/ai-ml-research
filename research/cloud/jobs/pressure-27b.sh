@@ -37,7 +37,8 @@ mark "2/5 weights"
 if [ ! -f "$MODEL/config.json" ] || [ "$(ls "$MODEL"/model.safetensors-*.safetensors 2>/dev/null | wc -l)" -lt 11 ]; then
   SNAP=$(ls -d "$SNAPSHOTS"/*/ | head -1)
   mkdir -p "$MODEL"
-  cp -rL "$SNAP". "$MODEL"/ || finish "weights copy failed" 1
+  # rsync from /vault, as GPUtw recommends; -L turns the HF cache symlinks into files, a rerun skips finished shards.
+  rsync -aL --partial "$SNAP" "$MODEL"/ || finish "weights copy failed" 1
 fi
 mark "weights $(du -sh "$MODEL" | cut -f1)"
 
