@@ -18,6 +18,11 @@ their obvious paths and the raw response is shown, so a refusal is visible rathe
   run <id> -- <command>           start a long command under nohup on the instance, log in /vault/work/logs/
   jobs <id> | kill <id> <name>    list the jobs `run` started / stop one by its pid file
   vault-upload <local> [--path p] upload one file to Vault through the transfer host (no instance needed)
+  vault-fetch <hf-id> [--dest p]  have GPUtw download a Hugging Face model into /vault/work/models/<name>, file by
+                                  file, pinned to the repo's current commit (no instance needed; the console's
+                                  「從網址下載」 endpoint, /api/vault/downloads, which the docs do not describe).
+                                  Three run at once per account, so this waits for slots; rerun it to fill gaps
+  vault-downloads [--watch]       those server-side downloads and their progress
 
 usage: gputw.py <command> [...]; GPUTW_API_KEY=... or ~/.config/gputw/key
 """
@@ -27,7 +32,7 @@ try:
     import requests
 except ImportError:  # the model-server venv has no requests; urllib is enough for these calls
     requests = None
-import urllib.request, urllib.error
+import urllib.parse, urllib.request, urllib.error
 
 BASE = "https://gputw.ai"
 UPLOAD = "https://upload.gputw.ai"
@@ -136,7 +141,7 @@ def cmd_deploy(args):
     node = nodes[0]
     nid = node.get("id") or node.get("nodeId") or node.get("machineId")
     # Model weights go to the instance disk: /vault writes at a few MB/s (measured 6 MB/s direct), /workspace at GB/s.
-    # Weights that must persist are fetched into the Vault server-side from the console ("從網址下載") instead.
+    # Weights that must persist are fetched into the Vault server-side (gputw.py vault-fetch) instead.
     env = [{"name": k, "value": v} for k, v in ([("HF_HOME", "/workspace/hf"), ("PYTHONUNBUFFERED", "1")] + [tuple(e.split("=", 1)) for e in (args.env or [])])]
     body = {"nodeId": nid, "bandwidthMbps": args.bandwidth, "ports": [],
             "customImage": {"dockerImage": args.image, "sshEnabled": True, "webUiEnabled": False, "env": env, "args": ["sleep", "infinity"]},
@@ -286,6 +291,57 @@ def cmd_vault_upload(args):
     print(r.status_code, r.text[:800])
 
 
+HF_PATTERNS = (".json", ".safetensors", ".jinja", ".txt", ".model")  # what the job loads; no README, LICENSE, evals
+
+
+def cmd_vault_fetch(args):
+    """Queue one server-side download per file: the console's dialog takes one direct link at a time, and a repo page
+    URL fails ("returned a web page, not a file"). Files already in the Vault at the right size are skipped."""
+    with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/api/models/{args.hf_id}?blobs=true", headers={"User-Agent": "ai-ml-research"}), timeout=60) as r:
+        info = json.load(r)
+    if info.get("gated"):
+        sys.exit(f"{args.hf_id} is gated; this command does not pass a Hugging Face token")
+    sha = info["sha"]
+    dest = args.dest or f"work/models/{args.hf_id.split('/')[-1]}"
+    files = [(s["rfilename"], s.get("size")) for s in info["siblings"] if s["rfilename"].endswith(HF_PATTERNS) and "/" not in s["rfilename"]]
+    status, text = call("GET", f"/api/vault/list?path={urllib.parse.quote(dest)}", raw=True)
+    have = {f["name"]: f["size"] for f in (json.loads(text)["data"]["files"] if status == 200 else [])}
+    queued = 0
+    for name, size in files:
+        if name in have and (size is None or have[name] == size):
+            continue
+        if any(r["targetPath"] == f"{dest}/{name}" and r["status"] in ("pending", "downloading") for r in call("GET", "/api/vault/downloads")["data"]):
+            continue  # already on its way
+        body = {"source": f"https://huggingface.co/{args.hf_id}/resolve/{sha}/{name}", "targetPath": f"{dest}/{name}"}
+        while True:  # at most 3 downloads run at once per account (429); wait for a slot
+            status, text = call("POST", "/api/vault/downloads", body, raw=True)
+            if status != 429:
+                break
+            time.sleep(30)
+        if status >= 400:
+            sys.exit(f"{name}: {status} {text[:300]}")
+        queued += 1
+        print(f"queued {name} ({(size or 0) / 1e9:.2f} GB) → /vault/{dest}/{name}  [{json.loads(text)['data']['id']}]", flush=True)
+    total = sum(s or 0 for _, s in files)
+    print(f"{args.hf_id}@{sha[:12]}: {len(files)} files, {total / 1e9:.1f} GB; {queued} queued, {len(files) - queued} already in /vault/{dest}")
+
+
+def cmd_vault_downloads(args):
+    while True:
+        rows = call("GET", "/api/vault/downloads")["data"]
+        rows = [r for r in rows if r["targetPath"].startswith(args.prefix)]
+        active = [r for r in rows if r["status"] in ("pending", "downloading")]
+        for r in rows:
+            pct = f"{100 * r['bytesDownloaded'] / r['totalBytes']:5.1f}%" if r.get("totalBytes") else "  —  "
+            print(f"{r['status']:<11} {pct} {r['targetPath']}" + (f"  ({r['error']})" if r.get("error") else ""))
+        done = sum(r["bytesDownloaded"] or 0 for r in rows)
+        print(f"-- {len(active)} active, {done / 1e9:.1f} GB downloaded")
+        if not args.watch or not active:
+            return
+        time.sleep(args.watch)
+        print()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -309,6 +365,8 @@ def main():
     p = sub.add_parser("jobs", help="list the jobs `run` started on the instance"); p.add_argument("id"); p.set_defaults(fn=cmd_jobs)
     p = sub.add_parser("kill", help="stop a job `run` started, by its pid file"); p.add_argument("id"); p.add_argument("name"); p.set_defaults(fn=cmd_kill)
     p = sub.add_parser("vault-upload"); p.add_argument("local"); p.add_argument("--path", default="work"); p.set_defaults(fn=cmd_vault_upload)
+    p = sub.add_parser("vault-fetch", help="GPUtw downloads a Hugging Face model into the Vault"); p.add_argument("hf_id"); p.add_argument("--dest", help="Vault path (default work/models/<name>)"); p.set_defaults(fn=cmd_vault_fetch)
+    p = sub.add_parser("vault-downloads"); p.add_argument("--prefix", default="work/"); p.add_argument("--watch", type=int, default=0, help="refresh every N seconds until none is active"); p.set_defaults(fn=cmd_vault_downloads)
     args = ap.parse_args()
     args.fn(args)
 

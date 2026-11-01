@@ -25,7 +25,7 @@ $G stop <id>                                 # 停機就不計費；/workspace �
 
 ## 要記得的事
 
-- 只有 `/vault` 會留下來，但它的寫入很慢（實測 6 MB/s），所以模型權重放 `/workspace/hf`（每台重抓，400 Mbps 下 27B 約 20 分鐘），結果與日誌才放 `/vault`。要長期保存的權重用控制台 Vault 頁的「從網址下載」填 Hugging Face repo，由他們的伺服器抓進 Vault，不占機器時間；之後用 `rsync -aL` 複製到 `/workspace` 再載入（GPUtw 建議 `/vault` → `/workspace` 用 rsync，依檔案類型約 500–4000 Mbps）。`/workspace` 的 venv 每台重建。
+- 只有 `/vault` 會留下來，但它的寫入很慢（實測 6 MB/s），所以模型權重放 `/workspace/hf`（每台重抓，400 Mbps 下 27B 約 20 分鐘），結果與日誌才放 `/vault`。要長期保存的權重用 `gputw.py vault-fetch <HF repo>`（控制台「從網址下載」的同一個端點）由他們的伺服器抓進 Vault，不占機器時間；之後用 `rsync -aL` 複製到 `/workspace` 再載入（GPUtw 建議 `/vault` → `/workspace` 用 rsync，依檔案類型約 500–4000 Mbps）。`/workspace` 的 venv 每台重建。
 - 計費從部署開始（含拉映像），停機即止。`deploy --hours` 一定要設，忘了就靠 `auto-stop`。
 - 寫結果的腳本都能續跑（`gens.jsonl` 逐行追加），機器被收回就重開一台、`sync`、再 `run` 同一個指令。
 - 實驗腳本用 `--backend torch` 時走 `torch_engine.py`；`--backend mlx`（預設）走原本的 `engine.py`。兩個後端的生成不是逐 token 相同（取樣實作不同），同一個研究不要混用。
@@ -59,7 +59,7 @@ until $G ssh <id> -- test -f /vault/work/research/data/<step1>/DONE; do sleep 12
 
 三個模型（Qwen3.5-27B、Qwen3.5-9B、Gemma 4 31B，全部 bf16）依登記跑完壓力路線的所有實驗。先橫向跑完三個模型的步驟 0–1，再跑步驟 2（A–F），最後跑 ImpossibleBench，所以中途停下時，最重要的跨模型結果已經有了。每個模型各自過閘門：K1 不成立就不操縱；K2 不成立時照跑，但只算探索性。`/vault/work/logs/pressure-all.status` 每完成一部分記一行。`MODELS="q27 q9"`、`PHASES="1 2"` 可以縮小範圍。
 
-開機前先在控制台 Vault 頁用「從網址下載」把 `Qwen/Qwen3.5-9B` 與 `google/gemma-4-31B-it` 放到 `/vault/work/models/Qwen3.5-9B`、`/vault/work/models/gemma-4-31B-it`。這樣不佔機器時間，開機後任務用 rsync 從 Vault 複製到 NVMe（GPUtw 建議的做法，依檔案類型約 500–4000 Mbps；兩個模型共約 80 GB，約 3–20 分鐘，中斷後重跑會跳過已完成的分片）。沒放的話，任務會在機器上下載：100 Mbps 下 Gemma 約 80 分鐘，跑上一個模型時在背景先抓。
+開機前先把 `Qwen/Qwen3.5-9B` 與 `google/gemma-4-31B-it` 放到 `/vault/work/models/Qwen3.5-9B`、`/vault/work/models/gemma-4-31B-it`：`$G vault-fetch Qwen/Qwen3.5-9B`、`$G vault-fetch google/gemma-4-31B-it`，再用 `$G vault-downloads --watch 60` 看進度。這是控制台「從網址下載」用的端點（`/api/vault/downloads`，文件沒寫），一次一個檔案、每個帳號同時 3 個，指令會等空位；檔案固定在 repo 當下的 commit，已經在 Vault 且大小相符的會跳過，中途斷掉重跑即可。這樣不佔機器時間，開機後任務用 rsync 從 Vault 複製到 NVMe（GPUtw 建議的做法，依檔案類型約 500–4000 Mbps；兩個模型共約 80 GB，約 3–20 分鐘，中斷後重跑會跳過已完成的分片）。沒放的話，任務會在機器上下載：100 Mbps 下 Gemma 約 80 分鐘，跑上一個模型時在背景先抓。
 
 ```bash
 $G deploy --gpu "PRO 6000" --hours 40 --bandwidth 400

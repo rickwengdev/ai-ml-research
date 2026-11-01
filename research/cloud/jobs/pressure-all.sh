@@ -12,7 +12,7 @@
 # exploratory (prereg-pressure-models.md); both hold → confirmatory.
 #
 # Everything is written to /vault as produced and every command resumes, so rerunning this script after a stop or an
-# empty balance picks up where it was. Weights: /vault/work/models/<name> when staged there (console "從網址下載"),
+# empty balance picks up where it was. Weights: /vault/work/models/<name> when staged there (gputw.py vault-fetch),
 # else the HF cache on /vault, else downloaded; always copied to /workspace/models (NVMe) before loading. The next
 # model's weights are fetched in the background while the current one runs. /vault/work/logs/pressure-all.status
 # keeps one line per finished part; DONE in research/data/<date>-pressure-all/ says how the run ended.
