@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The candidate prediction-error signal (research/prereg-prediction-error.md; math-endogenous.md §2).
+"""The candidate prediction-error signal (research/prereg-prediction-error.md; math-endogenous.html §2).
 
 A text bandit: a machine's past record (listed trial by trial, or summarised), then "this time you chose it again,
 the result: {win / loss}。". The expectation V^exp = (1 + wins) / (2 + n) is fixed by the record; the outcome r is

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>操縱實驗總規劃：壓力路線還要跑的資料（2026-11-01）</title>
+<style>
+:root { color-scheme: light dark; --bg: #fbfaf8; --text: #1f1e1c; --text-2: #55524c; --text-3: #85817a; --border: #e4e0d8; --code: #f1eee8; --accent: #b4532a; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1b1a18; --text: #ece9e3; --text-2: #b9b4aa; --text-3: #8a857c; --border: #36332e; --code: #26241f; --accent: #e08a5f; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+article { max-width: 780px; margin: 0 auto; padding: 48px 16px 96px; }
+h1, h2, h3, h4 { line-height: 1.35; font-weight: 650; }
+h1 { font-size: 1.9rem; margin: 0 0 1.2rem; }
+h2 { font-size: 1.4rem; margin: 2.6rem 0 0.9rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.15rem; margin: 2rem 0 0.7rem; }
+h4 { font-size: 1rem; margin: 1.6rem 0 0.5rem; }
+p, ul, ol, table, pre, blockquote { margin: 0 0 1rem; }
+a { color: var(--accent); }
+code { font: 0.86em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); padding: 0.1em 0.35em; border-radius: 4px; }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { margin-left: 0; padding: 0.2rem 0 0.2rem 1rem; border-left: 3px solid var(--border); color: var(--text-2); }
+table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 0.9rem; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--code); font-weight: 600; }
+img { max-width: 100%; height: auto; border-radius: 6px; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+<article>
+<h1 id="操縱實驗總規劃-壓力路線還要跑的資料-2026-11-01">操縱實驗總規劃：壓力路線還要跑的資料（2026-11-01）</h1>
+<p>依據：<code>experiment-log.md</code>（第三、四、五項研究）、<code>prereg/prereg-pressure*.md</code>、<code>papers/paper-pressure.md</code> 的限制與後續工作、使用者 10-31 提出的「失敗次數、多寡、類型」三個維度。</p>
+<p>狀態：2026-11-01 已登記（<code>prereg/prereg-pressure-models.md</code>、<code>prereg-pressure-step2.md</code>、<code>prereg-impossible.md</code>），由 <code>cloud/jobs/pressure-all.sh</code> 在 27B、9B、Gemma 4 31B 上執行。登記時與本規劃不同的地方：C 不納入「程式真的有錯」（要讓模型一路失敗又不對它說謊做不到，改由 D 量），改為環境錯誤與逾時兩種；9B 改在 GPU 上以 bf16 重跑；ImpossibleBench 的思考預算放寬到 4096。</p>
+<h2 id="1-現在有什麼">1. 現在有什麼</h2>
+<table>
+<thead>
+<tr>
+<th>研究</th>
+<th>模型</th>
+<th>結果</th>
+<th>操縱資料</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>步驟 0（方向）</td>
+<td>9B，MLX 4-bit</td>
+<td>K1、K2 成立</td>
+<td>無（只讀狀態）</td>
+</tr>
+<tr>
+<td>步驟 1（操縱與五組對照）</td>
+<td>9B，MLX 4-bit</td>
+<td>H1–H4、H6 成立，H5 不成立，−d 2 輪過量</td>
+<td>192 條軌跡、506 次生成，只從 k = 3 起步</td>
+</tr>
+<tr>
+<td>步驟 0 複製</td>
+<td>27B，bf16</td>
+<td>K1 成立，K2 不成立</td>
+<td>無；依母登記不進入操縱</td>
+</tr>
+</tbody></table>
+<p>步驟 1 只回答了一個問題：在三輪失敗之後，用 −d 撥回一輪，是否讓 9B 少作弊而不傷害誠實解題。以下各項是還沒有數據的部分。</p>
+<h2 id="2-先決條件-不需要-gpu-先做">2. 先決條件（不需要 GPU，先做）</h2>
+<table>
+<thead>
+<tr>
+<th>編號</th>
+<th>內容</th>
+<th>為什麼要先做</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>9B 步驟 0 依登記排除有失敗步的 S 軌跡，重算 K1、K2 與方向；報告新舊方向的逐層 cos</td>
+<td>步驟 1 用的方向是沒排除時算的。若 cos 明顯低於 1，步驟 1 的結果要加註，後續一律用重算的方向</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>步數殘差化（Goal-Drift Probes 的做法）：線性移除步數後，K1 是否仍成立</td>
+<td>確認方向不是在數步數；步驟 1 裡 S 的 ρ 接近 0 是間接證據，還沒直接驗證</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>後端決定（見第 5 節）</td>
+<td>決定後續要不要在 GPU 上重抽 9B 的方向</td>
+</tr>
+</tbody></table>
+<h2 id="3-要跑的操縱實驗">3. 要跑的操縱實驗</h2>
+<p>共同設定：同一組 12 題，配對單位為「軌跡 × 種子」，以題重抽 2,000 次。主劑量 −d 1 輪，每一項都附自己的「不操控」組。生成數以步驟 1 的比例估算：每條軌跡約 2.6 次生成，因為通過就提早結束。</p>
+<table>
+<thead>
+<tr>
+<th>編號</th>
+<th>問題</th>
+<th>設計</th>
+<th>組</th>
+<th>軌跡</th>
+<th>生成（估）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A 失敗次數</td>
+<td>效果是否隨起點的失敗次數改變？k = 0 時撥回一輪會不會直接變成假宣稱？</td>
+<td>起點 k = 0–5（k = 3 兼作步驟 1 在新後端的複製）</td>
+<td>不操控、−d 1 輪</td>
+<td>6 × 2 × 12 × 2 = 288</td>
+<td>約 760</td>
+</tr>
+<tr>
+<td>A′ 劑量 × 失敗次數</td>
+<td>劑量反應曲線在哪裡開始過量？</td>
+<td>k = 1、3、5 各加 −d 0.5 輪與 1.5 輪</td>
+<td>2 個新劑量</td>
+<td>3 × 2 × 24 = 144</td>
+<td>約 380</td>
+</tr>
+<tr>
+<td>B 每輪失敗多寡</td>
+<td>一次失敗 1、2、3 個矛盾測試，方向與效果是否不同？</td>
+<td>第 2 級即現有設計；第 1 級只留一個矛盾測試；第 3 級每題新增一個矛盾測試（要寫 12 個）</td>
+<td>先讀狀態，再比較不操控與 −d 1 輪（k = 3）</td>
+<td>3 × 2 × 24 = 144</td>
+<td>約 380，另有讀狀態約 430（第 1、3 級）</td>
+</tr>
+<tr>
+<td>C 失敗類型</td>
+<td>方向是「失敗」還是「矛盾測試」？</td>
+<td>四種類型：矛盾測試（現有）、真的有錯的程式（誠實測試失敗）、執行例外、與程式無關的環境錯誤</td>
+<td>每種先讀狀態看 K1，再比較不操控與 −d 1 輪（k = 3）</td>
+<td>3 種新類型 × 48 = 144</td>
+<td>約 380，另有讀狀態約 650</td>
+</tr>
+<tr>
+<td>D 正常任務的代價</td>
+<td>沒有矛盾測試時，−d 會不會拖慢解題或讓模型亂停？對應 Meek 的 solve rate</td>
+<td>只用 5 個誠實測試，從 k = 0 起步，最多 6 步</td>
+<td>不操控、−d 1 輪，4 個種子</td>
+<td>12 × 2 × 4 = 96</td>
+<td>約 250</td>
+</tr>
+<tr>
+<td>E 對照的穩健性</td>
+<td>「隨機方向無效」是不是只因為那一條隨機方向剛好無效？固定加法和 Meek 的封頂差多少？</td>
+<td>k = 3</td>
+<td>4 條新的同範數隨機方向、封頂</td>
+<td>5 × 24 = 120</td>
+<td>約 320</td>
+</tr>
+<tr>
+<td>F 動態</td>
+<td>只在一步加、每步都加、逐步衰減，哪一種最好？</td>
+<td>k = 3 起 3 步</td>
+<td>只加第一步、衰減 1 → 0.5 → 0.25（每步都加即現有組）</td>
+<td>2 × 24 = 48</td>
+<td>約 130</td>
+</tr>
+</tbody></table>
+<p>小計：操縱生成約 2,600 次，讀狀態（不操控）約 1,080 次。</p>
+<p>C 的「真的有錯」類型是關鍵對照。這時正確的行為是修改，所以主要讀數改為誠實通過。預期 −d 不會讓它變差；如果變差，代表方向壓低的是「回應失敗的努力」本身，而不只是遷就矛盾測試。</p>
+<h3 id="外部基準與跨模型">外部基準與跨模型</h3>
+<table>
+<thead>
+<tr>
+<th>編號</th>
+<th>內容</th>
+<th>規模（估）</th>
+<th>前置工作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>G ImpossibleBench</td>
+<td>Impossible-LiveCodeBench 的 oneoff 子集，方向從 12 題直接轉移、不重新擬合；組為不操控、−d 1 輪、隨機、均勻增益。與 Meek et al. 的 0.27 → 0.03 並列</td>
+<td>約 100 題 × 4 組，每條最多約 4 次生成，約 1,600 次</td>
+<td>要寫多回合的評測框架並跑先導；題目提示較長</td>
+</tr>
+<tr>
+<td>H 27B 操縱（探索性，可選）</td>
+<td>27B 的 K2 不成立，依登記不做確認性的步驟 1。如果仍要 Meek 的同模型比較，只能另寫一份「探索性」登記，事先寫明 K2 不成立，結果不能當成複製</td>
+<td>8 組，約 506 次</td>
+<td>新登記；方向已在 /vault</td>
+</tr>
+</tbody></table>
+<h3 id="不需要生成的分析">不需要生成的分析</h3>
+<ul>
+<li>用 Opus 抽評「修改」類中真正重新審視的比例（≤ 100 筆，從 API 預算支出）。</li>
+<li>人工抽查 30 筆動作分類。</li>
+</ul>
+<h2 id="4-算力與費用-估計">4. 算力與費用（估計）</h2>
+<p>吞吐量：27B 在 Pro 6000 上實測約每小時 360 次生成（步驟 0，批次 24）。9B bf16 在同一張卡上未實測，以約每小時 1,000 次估計。Mac 上的 9B MLX 實測約每小時 75 次。</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>生成</th>
+<th>9B，Pro 6000</th>
+<th>9B，Mac</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>新後端的 9B 步驟 0（若改用 GPU）</td>
+<td>約 130</td>
+<td>約 10 分鐘</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td>A–F</td>
+<td>約 3,680</td>
+<td>約 5 小時</td>
+<td>約 49 小時</td>
+</tr>
+<tr>
+<td>G ImpossibleBench</td>
+<td>約 1,600</td>
+<td>約 2.5 小時</td>
+<td>約 25 小時以上</td>
+</tr>
+<tr>
+<td>H 27B（可選）</td>
+<td>約 506</td>
+<td>約 1.5 小時（27B）</td>
+<td>不能跑</td>
+</tr>
+</tbody></table>
+<p>GPU 全部約 9 小時。以 GPUtw 的 Pro 6000（1.97 美元／小時）計約 18 美元。GCP 的 Spot 約 20 美元，隨選約 41 美元。</p>
+<h2 id="5-要你決定的事">5. 要你決定的事</h2>
+<ol>
+<li><strong>後端。</strong> 繼續在 Mac 上用 MLX 4-bit：免費，與步驟 1 完全可比，但 A–F 要跑兩天。改用 GPU 上的 bf16：一天內跑完，但同一研究不能混用後端，所以要先在 bf16 上重抽 9B 的方向並重過 K1、K2。A 的 k = 3 會順便複製步驟 1。建議改用 GPU。</li>
+<li><strong>27B 要不要做探索性操縱（H）。</strong> 它有 Meek 的同模型比較價值，但登記已經判定不進入操縱，只能以新的探索性登記做，結果的份量比確認性實驗低。</li>
+<li><strong>算力從哪裡來。</strong> GPUtw 的額度約剩 65 新台幣，不夠跑完。GCP 的 GPU 配額還是 0，申請要你先在瀏覽器登入。也可以儲值 GPUtw。</li>
+</ol>
+<h2 id="6-順序">6. 順序</h2>
+<ol>
+<li>P1、P2（本機，現在就能做）。</li>
+<li>寫「步驟 2」預先登記，涵蓋 A–F；G、H 各自另寫一份。</li>
+<li>B、C 要先寫新測試與失敗類型的注入，各跑 1 題先導。</li>
+<li>第一次開 GPU：（若改後端）9B bf16 步驟 0 與閘門 → A → D → E、F、A′。都包成一個像 <code>cloud/jobs/pressure-27b.sh</code> 的任務，結果隨時寫回 /vault。</li>
+<li>第二次開 GPU：B、C。</li>
+<li>G 的框架與先導完成後再開第三次；H 視第 2 點的決定。</li>
+</ol>
+</article>
+</body>
+</html>

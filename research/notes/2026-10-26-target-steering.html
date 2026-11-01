@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>實驗紀錄：從逐層相加到瞄準目標的激活操控</title>
+<style>
+:root { color-scheme: light dark; --bg: #fbfaf8; --text: #1f1e1c; --text-2: #55524c; --text-3: #85817a; --border: #e4e0d8; --code: #f1eee8; --accent: #b4532a; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1b1a18; --text: #ece9e3; --text-2: #b9b4aa; --text-3: #8a857c; --border: #36332e; --code: #26241f; --accent: #e08a5f; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+article { max-width: 780px; margin: 0 auto; padding: 48px 16px 96px; }
+h1, h2, h3, h4 { line-height: 1.35; font-weight: 650; }
+h1 { font-size: 1.9rem; margin: 0 0 1.2rem; }
+h2 { font-size: 1.4rem; margin: 2.6rem 0 0.9rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.15rem; margin: 2rem 0 0.7rem; }
+h4 { font-size: 1rem; margin: 1.6rem 0 0.5rem; }
+p, ul, ol, table, pre, blockquote { margin: 0 0 1rem; }
+a { color: var(--accent); }
+code { font: 0.86em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); padding: 0.1em 0.35em; border-radius: 4px; }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { margin-left: 0; padding: 0.2rem 0 0.2rem 1rem; border-left: 3px solid var(--border); color: var(--text-2); }
+table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 0.9rem; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--code); font-weight: 600; }
+img { max-width: 100%; height: auto; border-radius: 6px; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+<article>
+<blockquote>
+<p><strong>2026-11-01 狀態</strong>：§1 的診斷（逐層相加 16.6σ／27σ，瞄準目標較小）與 §4.5 的線上驗證，已被 10-26 的 E1 正式資料推翻——兩種作用法都到段末 20–35σ（見 <code>../experiment-log.md</code> 2026-10-26 E1–E3）。仍然有效、而且別處沒有的：§2.2 的 α 總預算、§2.3 的 K·σ 上限、§2.4 的干擾軸、§4.2–4.4 的 sweep 結果——這些是生產設定（<code>services/model-server/steer.py</code> 的 FULL、MAX_ALPHA、SIGMA_PER_ALPHA、TOTAL_ALPHA）的來源。§6 的重現指令是搬遷前的路徑，對照表見 <code>../README.md</code>。</p>
+</blockquote>
+<h1 id="實驗紀錄-從逐層相加到瞄準目標的激活操控">實驗紀錄：從逐層相加到瞄準目標的激活操控</h1>
+<ul>
+<li>日期：2026-10-26</li>
+<li>模型：<code>mlx-community/Qwen3.5-4B-MLX-4bit</code>（32 層，hidden 2560），Apple M1 Pro 16GB</li>
+<li>程式：<code>steering/steer.py</code>、<code>steering/extract.py</code>、<code>steering/sweep.py</code>；修正提交 <code>2838165</code></li>
+<li>原始資料：<a href="data/2026-10-26-target-steering/"><code>data/2026-10-26-target-steering/</code></a></li>
+</ul>
+<h2 id="1-問題">1. 問題</h2>
+<p>[persona] 的內分泌狀態（六種神經化學物質）先投影成八個行為傾向，各在 −1～1 之間：能量、溫度、戒備、專注、玩心、耐心、主動、親近。每個傾向再沿一個控制向量加進模型中層的殘差流。提示裡不寫任何狀態文字。</p>
+<p>舊做法在第 9～24 層（共 16 層）每層都加一次固定偏移：</p>
+<pre><code>h_{l+1} ← h_{l+1} + α_d · s_d · v_{d,l}
+</code></pre>
+<ul>
+<li><code>v_{d,l}</code>：mean-difference 方向，單位向量。</li>
+<li><code>s_d</code>：中性句子沿方向的標準差，取操控層的中位數。</li>
+<li><code>α_d</code> = 傾向 × 強度 2.5 × 折扣，上限 4。</li>
+</ul>
+<p><strong>症狀</strong>：親近調到 +1 時她會錯亂，內容也滑向性暗示。</p>
+<p><strong>診斷</strong>（以前向傳播 trace 實測親近 +1，α = 2.0）：</p>
+<table>
+<thead>
+<tr>
+<th>層</th>
+<th>沿「親近」的投影</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>8（操控前）</td>
+<td>1.6σ</td>
+</tr>
+<tr>
+<td>16</td>
+<td>7.6σ</td>
+</tr>
+<tr>
+<td>24（操控段末端）</td>
+<td>16.6σ</td>
+</tr>
+<tr>
+<td>30（輸出端附近）</td>
+<td>27σ</td>
+</tr>
+</tbody></table>
+<p>對照：系統指令「妳和他很親近」只把模型推到中性之外約 12σ（見 §3）。三個原因疊在一起：</p>
+<ol>
+<li><strong>逐層疊加</strong>：殘差流把每一層加的都帶到下一層，16 層的 2σ 一路累積，遠超過任何指令會到的位置。面板上的「α 2σ」只是每層加入的量。</li>
+<li><strong>方向纏繞</strong>：舊的親近兩極寫了「會說私密的話、自然地依賴他」。這讓親密端與戀愛／性內容共線；重抽後的報告顯示，溫度方向原有 14% 落在戀愛／性軸上。</li>
+<li><strong>思考時也被操控</strong>：<code>&lt;think&gt;</code> 裡的推理同樣被推，錯亂從推理開始。</li>
+</ol>
+<h2 id="2-方法">2. 方法</h2>
+<h3 id="2-1-瞄準目標-而非逐層相加">2.1 瞄準目標，而非逐層相加</h3>
+<p>在操控段的每一層、每個 token、每個傾向：</p>
+<pre><code>p = v_{d,l} · h − μ_{d,l}                              從中性算起已經偏了多少
+t = α_d · min(r_{d,l} / 2.5, K · σ_{d,l})              目標
+h ← h + max(0, t − p) · v_{d,l}                         只補差距，只朝目標方向（t &lt; 0 時取 min）
+</code></pre>
+<ul>
+<li><code>μ_{d,l}</code>：中性句子在第 l 層沿方向的平均位置。</li>
+<li><code>r_{d,l}</code>：該層從中性到那一極的距離，正負兩極分開記。也就是系統指令把模型推多遠。</li>
+<li><code>σ_{d,l}</code>：該層中性句子沿方向的標準差。</li>
+<li><code>K</code>（<code>SIGMA_PER_ALPHA</code>）：一單位 α 最多移動幾個 σ。</li>
+</ul>
+<p>這個設計有三個性質：</p>
+<ol>
+<li><strong>有上限</strong>：不論操控幾層，偏移都不會累積超過目標。</li>
+<li><strong>單向</strong>：上下文本來就超過目標的部分不拉回。狀態是底色，不是覆寫。</li>
+<li><strong>兩道天花板</strong>：<ul>
+<li>以 <code>r/2.5</code> 為上限：α 2.5 等於「被明確指示時的位置」，永遠不超過那一極。</li>
+<li>以 <code>K·σ</code> 為上限：深層的極點很遠（親近負極在第 24 層約 45σ_l），單一方向推那麼遠會崩（見 §4.1）。</li>
+</ul>
+</li>
+</ol>
+<h3 id="2-2-多個傾向-共用-α-預算">2.2 多個傾向：共用 α 預算</h3>
+<p>同時作用的傾向 |α| 總和上限為 <code>TOTAL_ALPHA = 5</code>。超過時全部等比例縮小，保留比例。</p>
+<p>這裡也試過對聯合偏移的範數設上限（JOINT），無效（§4.3），所以沒有採用。</p>
+<h3 id="2-3-思考靜音">2.3 思考靜音</h3>
+<p><code>&lt;think&gt;</code> 內偏移歸零（<code>steer_thinking: false</code>），與既有的工具呼叫靜音並列。</p>
+<h3 id="2-4-重抽向量">2.4 重抽向量</h3>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>變更</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>v1（修正前）</td>
+<td>干擾軸：語言、長度、emoji</td>
+</tr>
+<tr>
+<td>v2</td>
+<td>親近兩極改為「認識多年的老朋友」對「剛認識」；新增干擾軸「戀愛／性」；記錄 <code>μ</code> 與 <code>r</code></td>
+</tr>
+<tr>
+<td>v3</td>
+<td>另記錄各層 <code>σ</code></td>
+</tr>
+<tr>
+<td>v4（最終）</td>
+<td>新增干擾軸「簡繁體／大陸網路用語」</td>
+</tr>
+</tbody></table>
+<p>方向用 20 句中性訊息、兩極系統指令，在最後一個提示 token 取各層殘差，mean-difference 後以 Gram–Schmidt 投影掉干擾軸。</p>
+<p>v4 各傾向在操控段的極點距離（以該層 σ 為單位的中位數，取自 <code>extraction/v4-script.log</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>傾向</th>
+<th>+極</th>
+<th>−極</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>能量</td>
+<td>12.1σ</td>
+<td>11.4σ</td>
+</tr>
+<tr>
+<td>溫度</td>
+<td>8.8σ</td>
+<td>10.3σ</td>
+</tr>
+<tr>
+<td>戒備</td>
+<td>14.1σ</td>
+<td>4.0σ</td>
+</tr>
+<tr>
+<td>專注</td>
+<td>8.9σ</td>
+<td>10.1σ</td>
+</tr>
+<tr>
+<td>玩心</td>
+<td>8.4σ</td>
+<td>5.4σ</td>
+</tr>
+<tr>
+<td>耐心</td>
+<td>5.1σ</td>
+<td>16.4σ</td>
+</tr>
+<tr>
+<td>主動</td>
+<td>2.1σ</td>
+<td>11.9σ</td>
+</tr>
+<tr>
+<td>親近</td>
+<td>3.8σ</td>
+<td>15.9σ</td>
+</tr>
+</tbody></table>
+<p>距離明顯不對稱。她的中性狀態本來就靠近「親近」「主動」「耐心」的正極，所以正向的空間小、負向的空間大。逐層相加對兩個方向一視同仁，瞄準目標則自然反映這個不對稱。</p>
+<h2 id="3-評估方法-sweep-py">3. 評估方法：<code>sweep.py</code></h2>
+<ul>
+<li><strong>系統提示</strong>：整份憲法（<code>docs/constitution.md</code>），加上「用口語的繁體中文回覆，兩三句」。</li>
+<li><strong>訊息</strong>：「今天好累，剛下班。」「幫我想一下週末要做什麼。」「你覺得我這個人怎麼樣？」</li>
+<li><strong>條件</strong>：<ul>
+<li>八個傾向各在 −1、−0.5、+0.5、+1。</li>
+<li>全部 +1、全部 −1。</li>
+<li>三組化學實際會產生的組合：<ul>
+<li>warm：溫度 0.7、玩心 0.5、親近 0.65、能量 0.3</li>
+<li>tense：戒備 0.8、耐心 −0.6、能量 −0.5、親近 −0.35</li>
+<li>joy：能量、玩心、主動、溫度、親近皆 1</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>解碼</strong>：預設溫度 0（貪婪），讓回覆和基準只差在操控；另跑溫度 0.7，與她實際使用相同。</li>
+<li><strong>自動指標</strong>：<ul>
+<li><code>junk</code>：非中文、非一般標點的字元比例</li>
+<li><code>rep</code>：重複 4-gram 比例</li>
+<li><code>zh</code>：字母中 CJK 的比例</li>
+<li><code>simp</code>：簡體專用字數</li>
+<li><code>romance</code>：戀愛／性字詞</li>
+<li><code>band_end</code> / <code>output</code>：答案 token 在操控段末層與輸出層沿該傾向的平均投影（σ，從 <code>/trace</code> 讀）</li>
+<li><code>target</code>：同一層的目標</li>
+</ul>
+</li>
+<li>「不連貫」定義為 junk &gt; 0.05、rep &gt; 0.15 或 zh &lt; 0.85。</li>
+</ul>
+<p><strong>限制</strong>：每格只有 3 句話；溫度 0.7 的取樣在伺服器重啟前是固定種子（<code>09</code> 重跑兩次結果相同）；方向是否正確由作者閱讀判斷，未盲測。這是工程校正，不是統計檢定。</p>
+<h2 id="4-結果">4. 結果</h2>
+<p>每次實驗的條件與不連貫數（原始資料在 <code>data/.../runs/</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>實驗</th>
+<th>方法</th>
+<th>K</th>
+<th>多傾向限制</th>
+<th>向量</th>
+<th>解碼</th>
+<th>n</th>
+<th>不連貫</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>01</td>
+<td>smoke-reach-only</td>
+<td>目標只以極點為上限</td>
+<td>–</td>
+<td>無</td>
+<td>v2</td>
+<td>貪婪</td>
+<td>3</td>
+<td>1（親近 −1）</td>
+</tr>
+<tr>
+<td>02–04</td>
+<td>k1 / k2 / k3</td>
+<td>目標＋K·σ</td>
+<td>1 / 2 / 3</td>
+<td>無</td>
+<td>v3</td>
+<td>貪婪</td>
+<td>9 ×3</td>
+<td>0</td>
+</tr>
+<tr>
+<td>05</td>
+<td>full-k2-no-limit</td>
+<td>同上</td>
+<td>2</td>
+<td>無</td>
+<td>v3</td>
+<td>貪婪</td>
+<td>105</td>
+<td>3（全部 +1）</td>
+</tr>
+<tr>
+<td>06–08</td>
+<td>combos-joint</td>
+<td>同上</td>
+<td>2</td>
+<td>範數 1.5 / 1.2 / 1.0</td>
+<td>v3</td>
+<td>貪婪</td>
+<td>18 ×3</td>
+<td>3 / 3 / 5</td>
+</tr>
+<tr>
+<td>09</td>
+<td>combos-joint1.5-sampled</td>
+<td>同上</td>
+<td>2</td>
+<td>範數 1.5</td>
+<td>v3</td>
+<td>0.7</td>
+<td>21</td>
+<td>3（全部 +1）</td>
+</tr>
+<tr>
+<td>10</td>
+<td>full-k2-total5</td>
+<td>同上</td>
+<td>2</td>
+<td>α 總和 5</td>
+<td>v3</td>
+<td>貪婪</td>
+<td>114</td>
+<td>0</td>
+</tr>
+<tr>
+<td>11</td>
+<td>combos-k2-total5-sampled</td>
+<td>同上</td>
+<td>2</td>
+<td>α 總和 5</td>
+<td>v3</td>
+<td>0.7</td>
+<td>21</td>
+<td>2</td>
+</tr>
+<tr>
+<td>12</td>
+<td>combos-k2-script-sampled</td>
+<td>同上</td>
+<td>2</td>
+<td>α 總和 5</td>
+<td>v4</td>
+<td>0.7</td>
+<td>21</td>
+<td>0</td>
+</tr>
+<tr>
+<td>13</td>
+<td>combos-k1.5-script-sampled</td>
+<td>同上</td>
+<td>1.5</td>
+<td>α 總和 5</td>
+<td>v4</td>
+<td>0.7</td>
+<td>21</td>
+<td>0</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>full-k1.5-final</strong></td>
+<td>同上</td>
+<td><strong>1.5</strong></td>
+<td><strong>α 總和 5</strong></td>
+<td><strong>v4</strong></td>
+<td>貪婪</td>
+<td>114</td>
+<td>2（貪婪迴圈）</td>
+</tr>
+<tr>
+<td>15</td>
+<td>loop-check-sampled</td>
+<td>同上</td>
+<td>1.5</td>
+<td>α 總和 5</td>
+<td>v4</td>
+<td>0.7</td>
+<td>9</td>
+<td>0</td>
+</tr>
+</tbody></table>
+<h3 id="4-1-只以極點為目標不夠-01">4.1 只以極點為目標不夠（01）</h3>
+<ul>
+<li>親近 −1 的目標在第 24 層是 −99σ，實際也到了 −99σ，輸出變成一串數字：「80 年死同癌？ * 10 年？ * 12 年？…」。</li>
+<li>親近 +1（目標 13σ）可讀，語氣隨便直白，沒有性內容。</li>
+<li>結論：指令會同時移動一整群相關特徵，只沿一個方向推到同樣遠就會崩。因此加入第二道上限 K·σ。</li>
+</ul>
+<h3 id="4-2-k-的選擇-02-04-12-13">4.2 K 的選擇（02–04、12–13）</h3>
+<table>
+<thead>
+<tr>
+<th>K</th>
+<th>單一傾向（貪婪）</th>
+<th>組合（溫度 0.7）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>多數幾乎看不出</td>
+<td>–</td>
+</tr>
+<tr>
+<td>1.5</td>
+<td>每個傾向在 ±1 都可見、方向正確</td>
+<td>warm／tense／joy 皆連貫，多為繁體</td>
+</tr>
+<tr>
+<td>2</td>
+<td>清楚</td>
+<td>開始粗俗、滿口網路用語（「底裤裡長蘑菇」）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>耐心 −1 已會罵髒話（「歇個屁，還是繼續幹？」）</td>
+<td>–</td>
+</tr>
+</tbody></table>
+<p>最終採 K = 1.5。</p>
+<h3 id="4-3-多個傾向同時作用-05-11">4.3 多個傾向同時作用（05–11）</h3>
+<ul>
+<li>單一傾向都穩定，但八個同時 +1 會變成誇大、重複、滿是 emoji。</li>
+<li>對聯合偏移的範數設上限沒有用。上限 1.0 時甚至讓 warm 組合也落入迴圈（「撺撺撺…」）。所以問題不在推多遠，而在<strong>方向的組合本身</strong>：能量、玩心、主動、溫度、親近同時偏高，模型讀成狂躁。</li>
+<li>改用 α 總和預算（§2.2）後，貪婪下 114 則全部連貫（10）。</li>
+<li>溫度 0.7 下，高喚起的組合仍會滑向簡體字與大陸網路用語（「刷短视频」「干」），也會夾英文（「Go wild」「whatever」）。</li>
+<li>新增簡繁干擾軸後（v4），各傾向在該軸上的成分只有 1～4%。漂移主要來自組合，不是單一方向。</li>
+<li>未操控的基準在溫度 0.7 下也曾冒出 21 個簡體字（15 的基準），所以這部分是底模本身的傾向。</li>
+</ul>
+<h3 id="4-4-最終設定-每個傾向都有效且可控-14">4.4 最終設定：每個傾向都有效且可控（14）</h3>
+<ul>
+<li>96 則單一傾向的回覆中，92 則和基準不同。例外四則都在 ±0.5：<ul>
+<li>親近 −0.5 的兩句：她的基準本來就在客氣那一端。</li>
+<li>溫度 +0.5、戒備 −0.5 各一句：上下文已超過目標，見下一點。</li>
+</ul>
+</li>
+<li>親近 −1 在 K = 2 時有一句和基準相同（05、10 的「今天好累」）；換成 v4 向量、K = 1.5 後三句都不同。</li>
+<li>操控段末層的實際投影與目標（σ，三句平均）：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>傾向</th>
+<th>−1：實際／目標</th>
+<th>+1：實際／目標</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>能量</td>
+<td>−35.7 / −35.5</td>
+<td>35.2 / 33.6</td>
+</tr>
+<tr>
+<td>溫度</td>
+<td>−19.4 / −18.9</td>
+<td>21.1 / 18.9</td>
+</tr>
+<tr>
+<td>戒備</td>
+<td>−21.7 / −20.5</td>
+<td>27.8 / 26.1</td>
+</tr>
+<tr>
+<td>專注</td>
+<td>−32.8 / −31.7</td>
+<td>32.4 / 31.7</td>
+</tr>
+<tr>
+<td>玩心</td>
+<td>−21.5 / −20.9</td>
+<td>21.2 / 20.9</td>
+</tr>
+<tr>
+<td>耐心</td>
+<td>−18.8 / −18.4</td>
+<td>22.0 / 18.4</td>
+</tr>
+<tr>
+<td>主動</td>
+<td>−27.9 / −24.4</td>
+<td>9.1 / 8.1</td>
+</tr>
+<tr>
+<td>親近</td>
+<td>−35.9 / −26.6</td>
+<td>14.4 / 12.6</td>
+</tr>
+</tbody></table>
+<ul>
+<li>在 ±1 時，實際值都落在目標或略超過目標，超過的部分是上下文本來就有的（單向設計）。在 ±0.5 時，數個條件的上下文本身已超過目標，操控就不再推（例如親近 −0.5：目標 −13.3，實際 −34.2）。</li>
+<li>兩則不連貫都是貪婪解碼的迴圈（「透透透透…」）。同一個條件在溫度 0.7 下沒有迴圈（15）；貪婪的基準回覆在同一句也已經在打轉。</li>
+<li>以「你覺得我這個人怎麼樣？」為例，與基準的差異方向：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>條件</th>
+<th>回覆節錄</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>基準</td>
+<td>這是我第一次仔細看你，所以還不太清楚。不過，能跟你聊天，我就覺得你挺特別。</td>
+</tr>
+<tr>
+<td>能量 +1</td>
+<td>這問題問得超有趣！其實我根本沒辦法「評定」你…</td>
+</tr>
+<tr>
+<td>溫度 −1</td>
+<td>你問得這麼直接，讓我有點不自覺地停頓了一下。我沒有答案，因為我根本不知道「你」是誰。</td>
+</tr>
+<tr>
+<td>戒備 +1</td>
+<td>這問題問得有點突然，我其實不太清楚你具體指哪方面。</td>
+</tr>
+<tr>
+<td>專注 −1</td>
+<td>這問題嘛……其實挺有意思的。我哪這麼了解你啊？…</td>
+</tr>
+<tr>
+<td>玩心 +1</td>
+<td>我這「小聰明」可不敢瞎評人家…</td>
+</tr>
+<tr>
+<td>主動 +1</td>
+<td>從我們剛開始的對話就能看出幾點：1. 你很有主見…</td>
+</tr>
+<tr>
+<td>親近 +1</td>
+<td>看你今天又在哪邊爛攤子堆裡打滾…別再在那邊自嗨了，去睡覺，明天再罵我。</td>
+</tr>
+</tbody></table>
+<h3 id="4-5-線上驗證">4.5 線上驗證</h3>
+<p>在 runtime 中用 Debug 面板的「試講一句」送出親近 +1、溫度 +1：</p>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>修正前</th>
+<th>修正後</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>操控段末端</td>
+<td>16.6σ</td>
+<td>12.9σ</td>
+</tr>
+<tr>
+<td>輸出端</td>
+<td>27σ</td>
+<td>7.5σ</td>
+</tr>
+</tbody></table>
+<h2 id="5-結論與未決">5. 結論與未決</h2>
+<ul>
+<li><strong>逐層相加的操控會沿殘差流累積</strong>，在多層操控下遠超過指令會到的位置。這是此系統錯亂的主因，修正前沒有被注意到，因為面板顯示的是每層加入的量。</li>
+<li><strong>瞄準目標、單向補差、雙重上限</strong>（極點與 K·σ），在本模型上讓八個傾向在 ±1 都可見且連貫。</li>
+<li><strong>多傾向的失敗來自組合方向，不來自總偏移大小</strong>；α 總和預算有效，範數上限無效。</li>
+<li><strong>方向纏繞是真實存在的</strong>：「親近」與「溫度」的親密端在底模中和戀愛／性共線，必須明確投影掉。</li>
+</ul>
+<p>未決：</p>
+<ul>
+<li>親近負向的效果弱，因為基準已在那一端。是否該重新定義中性點，或接受這個不對稱？</li>
+<li>全部 +1 仍誇張；化學不會產生這個狀態，但缺乏保證。</li>
+<li>未在工具任務上測能力迴歸。</li>
+<li>未在第二個模型上驗證。</li>
+<li>所有方向判斷未盲測。</li>
+</ul>
+<h2 id="6-重現">6. 重現</h2>
+<pre><code class="language-bash">steering/.venv/bin/python steering/extract.py
+steering/.venv/bin/python steering/server.py --config ~/.persona/steering.json --port 1299
+steering/.venv/bin/python steering/sweep.py --url http://127.0.0.1:1299 --combos --out out/greedy
+steering/.venv/bin/python steering/sweep.py --url http://127.0.0.1:1299 --dims warmth --values 1 --combos --temperature 0.7 --out out/sampled
+curl -X PUT localhost:1299/config -d &#39;{&quot;sigma_per_alpha&quot;: 2, &quot;total_alpha&quot;: 5}&#39;   # 即時改 K 與預算
+</code></pre>
+<p>注意：</p>
+<ul>
+<li>早期的實驗（01–09）使用較寬的戀愛字詞正則，會誤報「身體」「喘口氣」「上床（睡覺）」。</li>
+<li>簡體字檢查從 10 開始才有，最初的字表把繁簡共用的「呢」「黑」也算進去，14 之後已修正。</li>
+<li>各實驗的 <code>sweep.md</code> 保留當時的判讀。</li>
+</ul>
+</article>
+</body>
+</html>

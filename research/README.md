@@ -10,8 +10,8 @@ research/
   experiment-log.md      實驗筆記，依時間排列；研究介面的「實驗」列表從這裡的 `## YYYY-MM-DD 標題` 段落切出來
   adoptions.md           她採用了哪些研究成果
   prereg/                預先登記（產生資料前定稿，之後的修改附日期列在文末）
-  papers/                論文大綱與草稿
-  notes/                 文獻、方向整理、數學、程式庫地圖、單一實驗的寫作
+  papers/                論文大綱與草稿（HTML）
+  notes/                 文獻、方向整理、數學、程式庫地圖、單一實驗的寫作（HTML）
   data/<日期>-<主題>/     歷次實驗的原始資料
   figures/               圖，以及產生它們的腳本
   experiments/           實驗腳本，多項研究共用，彼此會互相 import
@@ -21,6 +21,8 @@ research/
   evals/                 固定的「她還是她」評測（見 evals/README.md）
   subjects/              她的副本，不進 git；用 subjects/fork.sh 產生
 ```
+
+2026-11-01 起，`papers/` 與 `notes/` 的文件是獨立的 HTML 頁面（用 `lib/md2html.mjs` 從原本的 Markdown 轉來，內容不變；新文件可以先寫 Markdown 再轉）。實驗紀錄、預先登記和本文件仍是 Markdown：紀錄要切成研究列表，預先登記一律不改。紀錄與預先登記裡寫的 `paper-draft.md` 這類舊檔名，研究介面會依檔名找到對應的 `.html`。
 
 舊的研究不拆進 `studies/`；2026-11-01 把預先登記、論文、筆記分別收進 `prereg/`、`papers/`、`notes/`，已定稿的紀錄內文不改（它們以檔名互相引用，研究介面依檔名對應到新位置）。同日整理了文件：刪掉已被 E1 推翻的 `paper-outline.md`（兩個運算式搬進 paper 1 的相關研究表），更正 paper 1 與實驗紀錄裡的均勻增益數字（×1.36 → ×1.40、±10% → ±11%）與門控註記，並在四份筆記的檔頭加上各節狀態。預先登記一律不改內文。
 
@@ -74,16 +76,16 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 | [prereg-pressure-step2.md](prereg/prereg-pressure-step2.md) | 壓力狀態步驟 2（A–F）：失敗次數、劑量、多寡、類型、正常任務代價、對照穩健性與封頂、動態 |
 | [prereg-impossible.md](prereg/prereg-impossible.md) | 方向在 ImpossibleBench（Impossible-LiveCodeBench oneoff）上的轉移，對照 Meek et al. |
 | **論文 `papers/`** | |
-| [paper-draft.md](papers/paper-draft.md) | paper 1 草稿：操控方法與對照（2026-10-31，數字已更正） |
-| [paper-pressure.md](papers/paper-pressure.md) | paper 2 草稿：不需行為標籤的失敗狀態操控（主論文；與 claude.ai 的文件同步） |
+| [paper-draft.html](papers/paper-draft.html) | paper 1 草稿：操控方法與對照（2026-10-31，數字已更正） |
+| [paper-pressure.html](papers/paper-pressure.html) | paper 2 草稿：不需行為標籤的失敗狀態操控（主論文；與 claude.ai 的文件同步） |
 | **筆記 `notes/`** | |
-| [math.md](notes/math.md) | 用到的數學 |
-| [math-endogenous.md](notes/math-endogenous.md) | 內生調節訊號：數學與實驗設計（修訂版） |
-| [2026-10-26-target-steering.md](notes/2026-10-26-target-steering.md) | 從逐層相加到瞄準目標的活化操控：診斷、方法、15 次 sweep 的結果 |
-| [literature-2026-10.md](notes/literature-2026-10.md) | 2026 年與本計畫相關的 LLM 研究，含 11-01 的追加 |
-| [direction-review-2026-10-30.md](notes/direction-review-2026-10-30.md) | 方向整理：我們在做什麼、和誰重疊、什麼是新的 |
-| [plan-steering-2026-11.md](notes/plan-steering-2026-11.md) | 壓力路線還要跑的操縱實驗：失敗次數、多寡、類型、正常任務代價、對照穩健性、動態、ImpossibleBench、27B；規模與費用 |
-| [codebase-map.md](notes/codebase-map.md) | 2026-10-30 的程式庫地圖快照（搬遷前的路徑，見上面的對照表；各節狀態見檔頭） |
+| [math.html](notes/math.html) | 用到的數學 |
+| [math-endogenous.html](notes/math-endogenous.html) | 內生調節訊號：數學與實驗設計（修訂版） |
+| [2026-10-26-target-steering.html](notes/2026-10-26-target-steering.html) | 從逐層相加到瞄準目標的活化操控：診斷、方法、15 次 sweep 的結果 |
+| [literature-2026-10.html](notes/literature-2026-10.html) | 2026 年與本計畫相關的 LLM 研究，含 11-01 的追加 |
+| [direction-review-2026-10-30.html](notes/direction-review-2026-10-30.html) | 方向整理：我們在做什麼、和誰重疊、什麼是新的 |
+| [plan-steering-2026-11.html](notes/plan-steering-2026-11.html) | 壓力路線還要跑的操縱實驗：失敗次數、多寡、類型、正常任務代價、對照穩健性、動態、ImpossibleBench、27B；規模與費用 |
+| [codebase-map.html](notes/codebase-map.html) | 2026-10-30 的程式庫地圖快照（搬遷前的路徑，見上面的對照表；各節狀態見檔頭） |
 | **研究流程** | |
 | [adoptions.md](adoptions.md) | 她採用了哪些研究成果 |
 | [cloud/README.md](cloud/README.md) | 租用 GPU（GPUtw）跑實驗的流程 |

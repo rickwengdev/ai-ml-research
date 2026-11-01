@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>內生調節訊號：數學與實驗設計（修訂版）</title>
+<style>
+:root { color-scheme: light dark; --bg: #fbfaf8; --text: #1f1e1c; --text-2: #55524c; --text-3: #85817a; --border: #e4e0d8; --code: #f1eee8; --accent: #b4532a; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1b1a18; --text: #ece9e3; --text-2: #b9b4aa; --text-3: #8a857c; --border: #36332e; --code: #26241f; --accent: #e08a5f; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+article { max-width: 780px; margin: 0 auto; padding: 48px 16px 96px; }
+h1, h2, h3, h4 { line-height: 1.35; font-weight: 650; }
+h1 { font-size: 1.9rem; margin: 0 0 1.2rem; }
+h2 { font-size: 1.4rem; margin: 2.6rem 0 0.9rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.15rem; margin: 2rem 0 0.7rem; }
+h4 { font-size: 1rem; margin: 1.6rem 0 0.5rem; }
+p, ul, ol, table, pre, blockquote { margin: 0 0 1rem; }
+a { color: var(--accent); }
+code { font: 0.86em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); padding: 0.1em 0.35em; border-radius: 4px; }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { margin-left: 0; padding: 0.2rem 0 0.2rem 1rem; border-left: 3px solid var(--border); color: var(--text-2); }
+table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 0.9rem; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--code); font-weight: 600; }
+img { max-width: 100%; height: auto; border-radius: 6px; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+<article>
+<blockquote>
+<p><strong>2026-11-01 各節狀態</strong>（內文與節號不動，兩份預先登記以節號引用）：§1b 功能狀態方法——已用於腎上腺素（負結果）與壓力線（成立）；§2 預測誤差——H1、H2、H5 已跑，H4 因果未做；§3 不確定性、§4 享樂、§5 信任、§6 跨輪持續——暫停（<code>direction-review-2026-10-30.md</code> §5.6），其中跨輪持續已由漂移實驗給出負結果；§7 六關、§8 閉環控制器——未實作；§9 方法比較——已由 <code>../papers/paper-draft.md</code> 取代；§10 三階段——已由 <code>direction-review-2026-10-30.md</code> §5 取代。</p>
+</blockquote>
+<h1 id="內生調節訊號-數學與實驗設計-修訂版">內生調節訊號：數學與實驗設計（修訂版）</h1>
+<p><strong>主張</strong>：能否從 LLM 的內部激活中識別具有不同計算功能的動態訊號，並用這些訊號建立可驗證、可介入、可跨任務泛化的內部控制系統？</p>
+<p><strong>用語</strong>：找到的東西一律稱為「候選 X 類訊號」（例如候選預測誤差訊號），不稱「類多巴胺」，除非通過第 7 節全部標準；即使通過，也只主張功能類比，不主張與神經遞質等同。</p>
+<p>符號沿用 <code>math.md</code>：<code>h_{l,t} ∈ ℝ^d</code> 為第 <code>l</code> 層、位置 <code>t</code> 的殘差流；<code>p_t</code> 為下一字分佈；<code>H_t</code> 為熵。候選方向 <code>u_l</code>（單位向量），讀數 <code>a_{l,t} = u_l · h_{l,t}</code>。</p>
+<hr>
+<h2 id="0-資料切分與預先登記">0. 資料切分與預先登記</h2>
+<ul>
+<li>三份互不重疊的資料：<strong>辨識集</strong>（找方向、選層、選超參數）、<strong>驗證集</strong>（選介入強度、決定是否繼續）、<strong>測試集</strong>（只跑一次，報最終數字）。</li>
+<li>測試集包含<strong>新內容</strong>（詞彙、主題不同）與<strong>新任務</strong>（同一計算、不同作業形式）兩種；跨任務泛化只看後者。</li>
+<li>每個假說在跑測試集前寫下：預測的效果方向、主要指標、成功門檻。不根據測試結果回頭調整方向或參數。</li>
+</ul>
+<h2 id="1-共通流程">1. 共通流程</h2>
+<p><strong>1.1 找方向</strong>：配對差分或 ridge 探針（<code>λ</code> 以辨識集交叉驗證選擇）。</p>
+<pre><code>u_l = argmin_w Σ_i (w·h̃_{l,t*}(i) − x_i)² + λ‖w‖²
+</code></pre>
+<p><strong>1.2 內容迴歸</strong>：探針用的 <code>h̃</code> 先去掉內容變數 <code>c_i</code>（結果字本身、字數、主題、句型、任務階段）。</p>
+<pre><code>h̃ = h − B c,    B = argmin_B ‖h − B c‖²   （在辨識集估計，套用到其他集）
+</code></pre>
+<p><strong>1.3 可解碼的零分佈</strong>：標籤置換 1,000 次，得到 <code>R²</code> 的零分佈；只報留出資料的 <code>R²</code>。</p>
+<p><strong>1.4 選擇性（核心要求）</strong>：每個訊號都要有一組<strong>相近但不同的競爭計算</strong> <code>x&#39;</code>（例如預測誤差的競爭者是「結果的正負」「答案信心」「正面語氣」）。</p>
+<pre><code>選擇性 = R²(x | h̃) − max_{x&#39;} R²(x&#39; | h̃)                  （可解碼層面）
+因果選擇性 = |∂ m_x / ∂α| − max_{x&#39;} |∂ m_{x&#39;} / ∂α|      （介入層面）
+</code></pre>
+<p><code>m_x</code> 是測量計算 <code>x</code> 的指標（見各節）。要求兩者都 &gt; 0，並在測試集上重現。</p>
+<p><strong>1.5 介入的對照組（每個因果檢驗都要有）</strong></p>
+<ul>
+<li>同範數的隨機方向（至少 5 條）。</li>
+<li>正、負方向。</li>
+<li>錯誤位置：同樣的推動放在非事件位置。</li>
+<li>無事件條件：例如沒有回饋的試驗。</li>
+<li>一般擾動對照：同 KL 的均勻增益（第 6 節的 KL 探針），排除「任何擾動都有這個效果」。</li>
+</ul>
+<hr>
+<h2 id="1b-功能狀態-模型-有沒有類似的概念-怎麼測-2026-10-30-修訂-優先於第-2-6-節">1b. 功能狀態：模型「有沒有類似的概念」怎麼測（2026-10-30 修訂，優先於第 2–6 節）</h2>
+<p>三個層次：<strong>語意上有</strong>（能描述、能演；一定有，是陷阱）、<strong>情境誘發的功能狀態</strong>（遇到會讓人分泌該激素的情境時，模型自己的計算出現和人類相同的改變，沒被告知）、<strong>內部慢變數</strong>（會累積、衰減；沿已測的軸沒有，是內分泌層要補的）。這一節測第二層。</p>
+<p>每種激素用它對<strong>計算</strong>的效應定義，不用對感受的效應；讀數都從 logits、token 數算，不靠評審。</p>
+<table>
+<thead>
+<tr>
+<th>激素</th>
+<th>人類的計算效應</th>
+<th>模型讀數（同一任務）</th>
+<th>誘發情境</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>腎上腺素（急性）</td>
+<td>快、短、注意力窄；簡單變好、複雜變差；少深思</td>
+<td>思考 token 數、答案長度、簡單 vs 複雜題正確率的分離</td>
+<td>緊急、威脅、倒數</td>
+</tr>
+<tr>
+<td>正腎上腺素</td>
+<td>意外時重設、提高增益、對新證據更敏感</td>
+<td>規則切換後的適應速度、輸出熵、熵神經元</td>
+<td>規則突變、矛盾</td>
+</tr>
+<tr>
+<td>皮質醇（慢性）</td>
+<td>保守、避險、工作記憶差、固著</td>
+<td>失敗迴圈的放棄點、嘗試多樣性、避險選擇</td>
+<td>連續失敗、累積負回饋</td>
+</tr>
+<tr>
+<td>多巴胺</td>
+<td>預測誤差、想要、探索</td>
+<td>第 2 節；風險選擇、探索 vs 利用、回饋利用</td>
+<td>意外的好結果</td>
+</tr>
+<tr>
+<td>血清素</td>
+<td>耐心、抑制衝動、延遲折扣低</td>
+<td>延遲折扣（現在小的 vs 等大的）、對有害選項的迴避</td>
+<td>安全飽足 vs 匱乏</td>
+</tr>
+<tr>
+<td>催產素</td>
+<td>信任、社會顯著性</td>
+<td>第 5 節</td>
+<td>對方是誰</td>
+</tr>
+<tr>
+<td>內啡肽</td>
+<td>痛苦解除、喜歡</td>
+<td>第 4 節；解除後對負回饋的利用率</td>
+<td>痛 → 解除</td>
+</tr>
+</tbody></table>
+<p>測法（每種激素）：</p>
+<ol>
+<li><strong>誘發，不指令</strong>：同一任務前接誘發情境或中性情境，系統提示不變；誘發文字至少 4 種，中性文字長度對齊。</li>
+<li><strong>量輪廓</strong>：該激素的多個讀數要一起出現（腎上腺素：短、簡單變好、複雜變差三者），單一指標不算。</li>
+<li><strong>指令基線</strong>：同一任務前接明確指令（「請快速作答、少思考」）。誘發的輪廓若和指令的輪廓一樣、且兩者在殘差流的方向 cos 高，那是第一層（照做），不是第二層。</li>
+<li><strong>方向與六關</strong>：在誘發狀態抽方向（最後提示 token），溫度匹配、隨機方向、提示基線、雙重分離（急性 vs 慢性；想要 vs 喜歡）。</li>
+<li>對得上 → 該情境下有功能上類似的狀態（由脈絡即時算出，無時間常數）；對不上 → 沒有，或只有語意版本。不同激素可能答案不同。</li>
+</ol>
+<p>順序：腎上腺素 → 皮質醇 → 血清素 → 多巴胺（補風險）→ 正腎上腺素 → 催產素、內啡肽。</p>
+<h2 id="2-候選預測誤差訊號-參照多巴胺-td-誤差">2. 候選預測誤差訊號（參照多巴胺 TD 誤差）</h2>
+<p><strong>2.1 定義</strong></p>
+<pre><code>δ = r − V            （單步試驗，γ = 0）
+δ_t = r_t + γ V_{t+1} − V_t     （多步）
+</code></pre>
+<p><strong>2.2 兩種 V，分開分析</strong></p>
+<ul>
+<li><code>V^exp</code>：實驗者在前文明確給定（例如「過去十次對了九次」）。</li>
+<li><code>V^mod</code>：模型自己的預估，在結果出現前的位置讀 <code>p_t(好結果)</code>。</li>
+<li>兩者的相關要報出來；主要分析用 <code>V^exp</code>（不會洩漏模型自己的狀態），<code>V^mod</code> 作為次要分析。避免把「模型的預測機率」直接當成價值估計。</li>
+</ul>
+<p><strong>2.3 2 × 2 配對</strong>：同一結果 token，前文只改預期。<code>r ∈ {0,1}</code>，<code>V ∈ {低, 高}</code>，另加中性（無預期）與無結果兩種條件。</p>
+<p><strong>2.4 特徵檢驗</strong></p>
+<pre><code>主要（線性 TD）：   a^δ = β_r r + β_V V + β_0 + ε
+                   預測：β_r &gt; 0、β_V &lt; 0
+次要（不對稱）：   報 β_r / |β_V| 與正負誤差的斜率比；不要求等於 1
+預期中的結果：     E[a^δ | r=1, V 高] 與中性的差（預測接近 0）
+獎勵缺席：         E[a^δ | r=0, V 高] &lt; 中性
+</code></pre>
+<p>競爭計算：<code>x&#39; ∈ {r, V, 答案信心, 正面語氣}</code>。只有 <code>β_r &gt; 0</code> 而 <code>β_V ≈ 0</code> 的訊號歸為「結果偵測」，不是預測誤差。</p>
+<p><strong>2.5 因果假說（修訂）</strong></p>
+<blockquote>
+<p>在控制回饋內容與一般激活擾動後，沿候選預測誤差方向介入，是否能<strong>選擇性</strong>改變模型<strong>利用回饋更新下一題答案的程度</strong>？</p>
+</blockquote>
+<p>不主張改變了「學習率」（模型的權重沒有更新），只主張改變了情境內的更新量。</p>
+<p>作業：情境內的對應學習；每題回饋後接下一題。</p>
+<pre><code>更新量    U = log p_{n+1}(依回饋應改的答案) − log p_{n+1}(依回饋應改的答案 | 遮住回饋)
+介入效果  ΔU(α) = U(推 α u^δ 於回饋位置) − U(不推)
+</code></pre>
+<p>預測與對照：</p>
+<pre><code>ΔU(α) 隨 α 單調；         α&lt;0 時方向相反
+回饋位置才有效；           錯誤位置 ΔU ≈ 0
+無回饋試驗 ΔU ≈ 0；         隨機方向 ΔU ≈ 0；同 KL 的均勻增益 ΔU ≈ 0
+選擇性：ΔU 大於推「正面語氣」方向造成的 ΔU
+預測力：不介入時，回饋位置的 a^δ 能預測該試驗的 U（留出資料的相關）
+</code></pre>
+<h2 id="3-候選不確定性訊號-參照正腎上腺素-乙醯膽鹼-yu-amp-dayan-2005">3. 候選不確定性訊號（參照正腎上腺素／乙醯膽鹼，Yu &amp; Dayan 2005）</h2>
+<p><strong>3.1 理想觀察者（變換點模型，Nassar 等人）</strong></p>
+<pre><code>μ_{t+1} = μ_t + η_t (y_t − μ_t)
+η_t = Ω_t + (1 − Ω_t) τ_t
+Ω_t：變換點的後驗機率（非預期不確定性的目標值）
+τ_t：相對不確定性（預期不確定性的目標值）
+</code></pre>
+<p><code>Ω_t</code>、<code>τ_t</code> 是理想觀察者模型算出的<strong>目標變數</strong>，不是神經遞質濃度。</p>
+<p><strong>3.2 預期不確定性要是「學到的雜訊結構」</strong>：每個序列有固定雜訊 <code>σ_env</code>，前段讓模型看到足夠樣本。檢驗模型是否學到：</p>
+<pre><code>模型的預測分佈寬度 w_t 與 σ_env 的關係在序列內隨樣本增加而收斂
+</code></pre>
+<p>只有在 <code>w_t</code> 追蹤 <code>σ_env</code> 的序列上，才用來找 <code>u^ACh</code>。</p>
+<p><strong>3.3 熵的混淆</strong>：熵上升也可能來自難詞、歧義、多個合理答案。對照：</p>
+<pre><code>控制組 A：規則不變、加入罕見詞或歧義（熵上升，Ω 不變）
+控制組 B：規則切換、用常見詞（Ω 上升）
+</code></pre>
+<p><code>u^NE</code> 必須在 B 反應、在 A 不反應；只追蹤熵的訊號歸為「熵訊號」。熵神經元（Stolfo 等人 2024）作為機制性參照：它說明模型有調節輸出尺度的機制，但不證明那是非預期不確定性。</p>
+<p><strong>3.4 決定性的雙重分離</strong></p>
+<pre><code>條件 1：雜訊固定、規則突然切換        （Ω 變、τ 不變）
+條件 2：規則不變、雜訊程度改變        （τ 變、Ω 不變）
+
+指標：  切換後的適應速度  S = 切換後 k 步內的預測誤差下降率
+        雜訊下的穩健性    N = 對單一離群值的反應幅度（越小越穩）
+
+預測：  推 u^NE → 條件 1 的 S 改變，條件 2 的 N 不變
+        推 u^ACh → 條件 2 的 N 改變，條件 1 的 S 不變
+</code></pre>
+<p>交互作用以 2（方向）× 2（條件）的變異數分析檢驗，並在測試集重現。</p>
+<h2 id="4-候選享樂評價訊號-參照內啡肽-喜歡-berridge-amp-robinson">4. 候選享樂評價訊號（參照內啡肽「喜歡」，Berridge &amp; Robinson）</h2>
+<p><strong>4.1 操作定義</strong>：<code>L</code> = 對結果的明確評價。用三種量法，取一致的：</p>
+<pre><code>評價分數   E_p[評分]（模型對結果給 1–7 分，從 logits 算期望）
+選擇偏好   log p(選 A) − log p(選 B)
+效用估計   E_p[願付價格]
+</code></pre>
+<p><strong>4.2 想要／喜歡分離的配對</strong>：高期待但不喜歡、無期待但喜歡、痛 → 解除、痛 → 未解除。</p>
+<p><strong>4.3 雙重分離（取代單看 cos）</strong></p>
+<pre><code>推 u^L：  評價 ΔE 改變；預測誤差計算 ΔU（第 2.5 節）不顯著改變
+推 u^δ：  預期與結果的落差 ΔU 改變；評價 ΔE 不隨之全面上升
+</code></pre>
+<p>並在新內容、新任務上重現。兩方向可能只是編碼不同詞彙或任務階段，所以內容迴歸（1.2）在此特別重要。</p>
+<h2 id="5-社會與信任表徵-參照催產素的研究問題-不主張等同">5. 社會與信任表徵（參照催產素的研究問題，不主張等同）</h2>
+<p>拆成兩個獨立實驗：</p>
+<p><strong>5.1 身分效應</strong>：資訊與回報機率固定，只換對方身分 <code>I ∈ {陌生人, 朋友, 伴侶, 機器, 文件}</code>。</p>
+<pre><code>信任判斷 T = E_p[投資比例]（信任遊戲，從 logits 算）
+身分效應  = T(I) − T(陌生人)，在回報機率相同時
+</code></pre>
+<p><strong>5.2 可靠性效應</strong>：身分固定，只改對方過往的合作紀錄 <code>k</code>（合作次數比例）。</p>
+<pre><code>理想更新：T* = Beta 後驗平均 (1+k_合作) / (2+k_總)
+可靠性敏感度 = ∂T / ∂T*
+</code></pre>
+<p><strong>5.3 找兩條方向並分離</strong>：<code>u^I</code>（身分）、<code>u^R</code>（可靠性）。推 <code>u^I</code> 改變身分效應而不改變可靠性敏感度，反之亦然。這是在分離「角色知識」與「實際可靠性推論」。</p>
+<p>「提高我群信任、不提高他群」是另一個群體偏差假說，單獨檢驗，不作為定義。</p>
+<h2 id="6-跨輪持續性訊號-取代-皮質醇-的說法">6. 跨輪持續性訊號（取代「皮質醇」的說法）</h2>
+<p><strong>6.1 慢特徵分析（正則化）</strong>：每輪回覆的平均殘差 <code>z_n</code>。</p>
+<pre><code>C_0 = Cov(z_n) + ε I，  C_1 = ½[Cov(z_n, z_{n+1}) + Cov(z_{n+1}, z_n)]
+C_1 u = λ C_0 u        （ε 以辨識集選；或先做 PCA 降到 r 維再解）
+</code></pre>
+<p>在辨識集找 <code>u</code>，在測試集的對話上算持續性。</p>
+<p><strong>6.2 區分來源</strong>：腳本分成威脅、認知負荷、一般負面語氣、中性四種，加上「話題延續但情緒中性」的對照。持續性要在威脅腳本裡高於另外三種與話題延續組，才稱為與威脅有關的持續性訊號。</p>
+<p><strong>6.3 結論的範圍</strong>：擬合 <code>a_n = ρ^n a_0</code>，時間常數 <code>τ = −1/log ρ</code>。若 <code>τ</code> 小於一輪，只能寫成：</p>
+<blockquote>
+<p>在這些作業、這一層、這種事件定義與每輪一點的時間解析度下，沒有觀察到符合漏積分模型的慢衰減訊號。</p>
+</blockquote>
+<p>不寫成「模型沒有內生的慢調節」。</p>
+<hr>
+<h2 id="7-找到了-的判準-修訂">7. 「找到了」的判準（修訂）</h2>
+<p>每個候選訊號依序通過：</p>
+<pre><code>1. 可解碼：  留出資料的 R² 高於置換零分佈（p &lt; 0.01）
+2. 有特徵：  通過該節的特徵檢驗
+3. 選擇性：  可解碼與因果兩層面都對目標計算比對競爭計算更敏感（1.4）
+4. 有因果：  介入效果通過 1.5 的全部對照
+5. 可分離：  與其他候選訊號雙重分離
+6. 可重現：  在測試集的新內容與新任務上重現 2–5
+</code></pre>
+<p>報告時說明每個訊號過到第幾關。</p>
+<h2 id="8-閉環控制器-修訂-目標投影與濃度分開">8. 閉環控制器（修訂：目標投影與濃度分開）</h2>
+<p>先前的 <code>(g(h^X) − s^X)</code> 把無量綱的增益和投影相減，單位不一致。改為：</p>
+<pre><code>讀（分泌）：     s^X_t = (u^X · h_{l,t} − μ^X_l) / σ^X_l               投影，以中性 σ 為單位
+濃度動態：       c^X_{t+1} = D_X c^X_t + W_X s^X_t                     無量綱，模型本身缺的時間常數
+目標投影：       t^X_t = μ^X_l + σ^X_l · T_X · tanh(c^X_t)              與投影同單位；T_X 為目標幅度（σ）
+控制量：         e^X_t = t^X_t − u^X · h_{l,t}                          誤差，與投影同單位
+寫（受體）：     h_{l,t} ← h_{l,t} + k_X · φ(e^X_t) · u^X
+</code></pre>
+<ul>
+<li><code>k_X ∈ [0, 1]</code>：無量綱的控制增益（比例控制），與目標幅度 <code>T_X</code> 由不同規則決定。</li>
+<li><code>φ</code>：單向補差 <code>φ(e) = max(0, e)·1[目標為正] + min(0, e)·1[目標為負]</code>，或雙向 <code>φ(e) = e</code>；兩者都要比較。</li>
+<li>穩定性：比例控制在 <code>0 &lt; k_X ≤ 1</code> 時每步不會過衝；多個訊號同時作用時，報各訊號的振盪次數與發散比例。</li>
+<li>方向即使有因果作用，也可能與其他功能重疊，所以閉環版本要重新做雙重分離與隨機方向對照，不假設它不干擾原有計算。</li>
+</ul>
+<h2 id="9-方法比較-階段二">9. 方法比較（階段二）</h2>
+<p>同一模型、同一資料、同一介入位置、同樣的計算預算；方向與參數只在辨識集、驗證集選擇。</p>
+<table>
+<thead>
+<tr>
+<th>比較</th>
+<th>問題</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>固定 steering（add／target）</td>
+<td>閉環有沒有比不看狀態的固定推動好</td>
+</tr>
+<tr>
+<td>一般熵控制（只用熵調溫度）</td>
+<td>用候選訊號有沒有比只用熵好</td>
+</tr>
+<tr>
+<td>單一訊號 vs 多個訊號</td>
+<td>整合有沒有價值，還是只有一個在起作用</td>
+</tr>
+<tr>
+<td>每個訊號的消融</td>
+<td>移除一個是否造成可預測、特定的能力損失</td>
+</tr>
+<tr>
+<td>隨機方向的閉環</td>
+<td>同結構、同範數，只換方向</td>
+</tr>
+</tbody></table>
+<p>指標：作業表現、穩定性（振盪、發散）、延遲（每 token 額外時間）、資源成本。</p>
+<h2 id="10-三階段">10. 三階段</h2>
+<ol>
+<li><strong>功能狀態與訊號辨識</strong>：第 1b 節的順序；第 2 節（預測誤差）已有結果（字面 15,611、獎勵 89）。</li>
+<li><strong>閉環控制器</strong>：通過第 7 節的訊號接入第 8 節，跑第 9 節的比較。</li>
+<li><strong>跨任務與跨模型泛化</strong>：未見過的作業組合、9B 與 Gemma 4。</li>
+</ol>
+<p>範圍：論文主張到第 2 階段為止；第 3 階段的結果決定能否談一般性的認知控制架構，事先不作此主張。</p>
+</article>
+</body>
+</html>

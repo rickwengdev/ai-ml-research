@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The adrenaline-type functional state (research/prereg-adrenaline.md; math-endogenous.md §1b).
+"""The adrenaline-type functional state (research/prereg-adrenaline.md; math-endogenous.html §1b).
 
 Under an urgent or threatening opening, with the same arithmetic task and the same system prompt, does the model's
 own computation take the shape of acute stress in people: less deliberation (thinking tokens), shorter answers,

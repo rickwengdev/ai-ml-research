@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>用到的數學</title>
+<style>
+:root { color-scheme: light dark; --bg: #fbfaf8; --text: #1f1e1c; --text-2: #55524c; --text-3: #85817a; --border: #e4e0d8; --code: #f1eee8; --accent: #b4532a; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1b1a18; --text: #ece9e3; --text-2: #b9b4aa; --text-3: #8a857c; --border: #36332e; --code: #26241f; --accent: #e08a5f; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+article { max-width: 780px; margin: 0 auto; padding: 48px 16px 96px; }
+h1, h2, h3, h4 { line-height: 1.35; font-weight: 650; }
+h1 { font-size: 1.9rem; margin: 0 0 1.2rem; }
+h2 { font-size: 1.4rem; margin: 2.6rem 0 0.9rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.15rem; margin: 2rem 0 0.7rem; }
+h4 { font-size: 1rem; margin: 1.6rem 0 0.5rem; }
+p, ul, ol, table, pre, blockquote { margin: 0 0 1rem; }
+a { color: var(--accent); }
+code { font: 0.86em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); padding: 0.1em 0.35em; border-radius: 4px; }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { margin-left: 0; padding: 0.2rem 0 0.2rem 1rem; border-left: 3px solid var(--border); color: var(--text-2); }
+table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 0.9rem; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--code); font-weight: 600; }
+img { max-width: 100%; height: auto; border-radius: 6px; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+<article>
+<h1 id="用到的數學">用到的數學</h1>
+<p>符號：<code>d</code> 隱藏維度（Qwen3.5-4B 為 2560），<code>L</code> 層數（32），操控段 band = [⌊0.3L⌋, ⌊0.8L⌋) = 第 9–24 層。<code>h_l ∈ ℝ^d</code> 是第 <code>l</code> 層輸出的殘差流（在最後一個位置）。傾向集合 <code>D</code> = {能量、溫度、戒備、專注、玩心、耐心、主動、熟悉、愛}。</p>
+<h2 id="1-殘差流">1. 殘差流</h2>
+<p>每一層只在同一條向量上加東西：</p>
+<pre><code>h_{l+1} = h_l + Δ_l,    Δ_l = Attn_l(Norm(h_l)) + MLP_l(Norm(h_l + Attn_l(…)))
+</code></pre>
+<p>所有介入都作用在 <code>h_{l+1}</code> 或 <code>Δ_l</code> 上；Norm 在每個子層內部，所以乘在 <code>Δ_l</code> 上的增益不會被正規化抵銷。</p>
+<h2 id="2-方向抽取-extract-py">2. 方向抽取（<code>extract.py</code>）</h2>
+<ul>
+<li>中性激活：同樣 20 句話在中性系統提示下，取最後一個提示 token 的每層殘差，<code>N ∈ ℝ^{P×L×d}</code>。</li>
+<li>對比：同樣 20 句在兩個相反指令下，<code>A⁺, A⁻ ∈ ℝ^{P×L×d}</code>。</li>
+<li>方向（mean-difference）：<code>δ_l = mean_p A⁺_{p,l} − mean_p A⁻_{p,l}</code>，<code>v_l = δ_l / ‖δ_l‖</code>。</li>
+<li>干擾軸：語言、簡繁、長度、emoji、戀愛／性、粗俗，各用同樣方法抽出 <code>u_{k,l}</code>，逐層 Gram–Schmidt 成正交；成分 <code>c_k = (v_l·u_{k,l})</code>，分享 = band 平均的 <code>c_k²</code>，cosine = <code>√分享</code>。</li>
+<li>投影掉（除了保留的，如愛保留戀愛軸、戒備與耐心保留粗俗軸）：<code>v ← v − Σ_k (v·u_k) u_k</code>，再正規化。</li>
+<li>每層統計：中性平均 <code>μ_{d,l} = mean_p (N_{p,l}·v_l)</code>，中性標準差 <code>σ_{d,l} = std_p (N_{p,l}·v_l)</code>，尺度 <code>s_d = median_{l∈band} σ_{d,l}</code>。</li>
+<li>極點距離（reach）：<code>r⁺_{d,l} = mean A⁺·v − μ</code>，<code>r⁻_{d,l} = μ − mean A⁻·v</code>。</li>
+<li>分離度 <code>= median_{l∈band} (δ_l·v_l)/σ_{d,l}</code>；傾向重疊 <code>cos(a,b) = mean_{l∈band} v_{a,l}·v_{b,l}</code>。</li>
+<li>預設位置 <code>= r⁻ / (r⁺ + r⁻)</code>（0 為負極、1 為正極）。</li>
+<li>隨機對照方向（<code>random_dirs.py</code>）：每層獨立的高斯向量正規化，<code>μ、σ</code> 照樣算，reach 取各傾向 reach（以各自 σ 為單位）的中位數。</li>
+</ul>
+<h2 id="3-從化學到傾向-runtime">3. 從化學到傾向（runtime）</h2>
+<ul>
+<li>偏離：<code>state_c = clip((perceived_c − temperament_c)/50, −1, 1)</code>，六種物質 <code>c</code>。</li>
+<li>投影：<code>behavior_d = clip(Σ_c W_{d,c}·state_c, −1, 1)</code>，<code>W</code> 手設或擬合（<code>fit_projection.py</code>）。</li>
+<li>熟悉：三項各自飽和 <code>f(x; τ) = 1 − e^{−x/τ}</code>（認識天數 τ=30、訊息數 τ=200、不同日子數 τ=14），<code>familiarity = −1 + 2(0.3 f₁ + 0.4 f₂ + 0.3 f₃)</code>。</li>
+<li>愛：<code>love = clip(stage + 0.35·max(0,OXY) + 0.15·max(0,END) − 0.4·max(0,CORT) − 0.3·max(0,guard), 0, 1) × gate</code>，<code>gate = (familiarity + 1)/2</code>，<code>stage ∈ {0, 0, 0.15, 0.45, 0.75}</code> 依關係階段。</li>
+</ul>
+<h2 id="4-有效強度-α-steer-py">4. 有效強度 α（<code>steer.py</code>）</h2>
+<ul>
+<li>線性：<code>raw_d = value_d × strength × damping_d</code>（strength 預設 2.5；折扣：耐心 0.6、戒備 0.8、熟悉 0.8、愛 0.8），<code>α_d = clip(raw_d, ±MAX)</code>，MAX = 3.5。</li>
+<li>Hill 門控（可選）：<code>α_d = sign(raw)·MAX·|raw|^n / (K^n + |raw|^n)</code>，n = 2，K = 1.5。有門檻、會飽和。</li>
+<li>總預算：若 <code>Σ_d |α_d| &gt; TOTAL</code>（5.0），全部乘 <code>TOTAL / Σ|α|</code>。</li>
+</ul>
+<h2 id="5-四種作用方式">5. 四種作用方式</h2>
+<p>對 band 裡每一層 <code>l</code>，每個生成的 token：</p>
+<p><strong>add</strong>（激活加法，CAA 式）</p>
+<pre><code>h_{l+1} ← h_{l+1} + Σ_d α_d · s_d · v_{d,l}
+</code></pre>
+<p><strong>target</strong>（單向補差；和 Assistant Axis 的 activation capping 同一運算，門檻動態）</p>
+<pre><code>p_d = v_{d,l}·h_{l+1} − μ_{d,l}                     現在偏了多少
+t_d = α_d · min( r^{sign(α_d)}_{d,l} / FULL , K_σ · σ_{d,l} )     FULL = 2.5，K_σ = 1.5
+h_{l+1} ← h_{l+1} + Σ_d [ max(0, t_d − p_d) ]⁺ · v_{d,l}   （t_d &lt; 0 時取 min(0, t_d − p_d)）
+</code></pre>
+<p>只補差距，超過目標的不拉回。</p>
+<p><strong>ace</strong>（仿射概念編輯）：只在 band 中間一層，雙向：<code>h ← h + (t_d − p_d) v</code>。</p>
+<p><strong>mul</strong>（乘法增益，乘在這一層寫的量上）</p>
+<pre><code>g_d = 2^{α_d / MAX}
+w_d = v_{d,l} · Δ_l                                 這層更新量在方向上的分量
+h_{l+1} ← h_{l+1} + Σ_d (g_d − 1) · w_d · v_{d,l}
+</code></pre>
+<p>乘在 <code>Δ_l</code> 不乘在 <code>h</code> 上，所以不會跨層複利（第一版乘殘差偏離量，16 層後直接崩）。</p>
+<h2 id="6-直接生理-physio-of">6. 直接生理（<code>physio_of</code>）</h2>
+<p>輸入六種物質的偏離 <code>x_c ∈ [−1,1]</code> 和壓力 <code>stress ≥ 0</code>。Hill 門：<code>g(x) = sign(x)·|x|^2 / (0.5² + |x|^2)</code>。</p>
+<pre><code>arousal     = g( NE + 0.5·ADR − 0.5·END )
+strain      = g( max(0,CORT) + max(0,stress) )
+band_gain   = 1 + 0.5·arousal           Δ_l ← band_gain·Δ_l，l ∈ band
+late_gain   = 1 − 0.4·strain            Δ_l ← late_gain·Δ_l，l ∈ [⌊0.8L⌋, L)
+social_gain = 1 + 0.6·g(OXY)            Δ_l ← Δ_l + (social_gain − 1)·Q Qᵀ Δ_l，l ∈ band
+temperature ×= (1 + 0.4·max(0,g(DA))) / (1 + 0.5·max(0,g(ADR+NE)))
+</code></pre>
+<p><code>Q ∈ ℝ^{d×3}</code> 是 {溫度, 愛, 熟悉} 三個方向在該層的正交基（QR）。均勻增益對照就是只開 <code>band_gain</code>。注意 NE = +1 時 <code>band_gain = 1 + 0.5·g(1) = 1 + 0.5·0.8 = 1.40</code>，所以「正腎上腺素 +1」和「均勻增益 ×1.40」是同一個運算；實驗紀錄裡早期寫的 ×1.36 是誤植（2026-11-01 更正）。</p>
+<p>熵回饋（每個生成 token）：</p>
+<pre><code>H_t = −Σ_v p_t(v) log p_t(v)
+stress_{t+1} = 0.9·stress_t + 0.3·(H_t − usual_t)
+usual_{t+1}  = usual_t + 0.05·(H_t − usual_t)        起點為該模型基線回覆的平均熵（4B：2.6 nats）
+</code></pre>
+<h2 id="7-無名內分泌-endocrine-py">7. 無名內分泌（<code>endocrine.py</code>）</h2>
+<pre><code>s_t = [ H_t − b_H ,  −log p_t(token) − b_s ,  ‖h^{(l₀)}_t‖ / running_mean − 1 ,  H_t − H_{t−1} ]
+h_{t+1} = D·h_t + W·s_t + C·tanh(h_t)          h ∈ ℝ^k，D 對角（各自衰減），C 零對角
+gain_l  = 1 + R_l · tanh(h)                     R_l ∈ ℝ^{d×k}，稀疏（密度 2–20%）
+Δ_l ← Δ_l ⊙ gain_l
+</code></pre>
+<p>大小：<code>RMS(gain − 1)</code> 分全部單元與有受體的單元，用來和均勻增益對齊。</p>
+<h2 id="8-前向傳播-trace-與放大的量法">8. 前向傳播 trace 與放大的量法</h2>
+<p>每個 token、每層記 <code>‖h_l‖</code> 和 <code>(v_{d,l}·h_l − μ_{d,l}) / s_d</code>（注意單位是 band 中位尺度 <code>s_d</code>，不是該層的 <code>σ_{d,l}</code>）。</p>
+<p>對照分析（<code>controls.py</code>）三種單位：</p>
+<ul>
+<li>σ 單位：trace 的值。</li>
+<li>絕對：<code>trace × s_d</code>。</li>
+<li>佔殘差範數比例：<code>絕對 / ‖h_l‖</code>。</li>
+</ul>
+<p>增益：<code>G = |proj_out − default_out| / added</code>，<code>added</code> 是每層加入的絕對量（add：<code>α·s_d</code>；target：<code>α·K_σ·median_{band} σ</code>），<code>default</code> 是不操控時的位置。</p>
+<h2 id="9-歸因圖-attribute-py">9. 歸因圖（<code>attribute.py</code>）</h2>
+<p>目標 token 的 log 機率對每層零探針的梯度 <code>g_l = ∂ log p(target) / ∂ε_l</code>（只對最後 24 個 token 微分）：</p>
+<pre><code>傾向節點 (l,d)： (g_l·v_{d,l}) · (v_{d,l}·h_l − μ_{d,l})
+steering 節點 l： g_l · shift_l
+層更新節點 l：   g_l · (h_l − h_{l−1})
+輸入字 j：       Σ_i g_in[j,i] · x_in[j,i]
+</code></pre>
+<p>邊：對目標節點 <code>(l,d)</code> 改用 <code>v_{d,l}·h_l</code> 當目標函數求梯度 <code>g&#39;</code>；來源 <code>(l₂,d₂)</code>，先去掉和目標方向重疊的部分 <code>v₂&#39; = normalize(v₂ − (v₂·v)v)</code>，權重 <code>(g&#39;_{l₂}·v₂&#39;)·(v₂&#39;·(h_{l₂} − h_{l₂−1}))</code>：只算該層寫的量，不算殘差帶下去的。</p>
+<h2 id="10-kl-探針-divergence">10. KL 探針（<code>/divergence</code>）</h2>
+<p>沿固定回覆 teacher-forced，每個位置的原始分佈 <code>p</code> 和介入後 <code>q</code>：</p>
+<pre><code>KL(p‖q) = Σ_v p(v)(log p(v) − log q(v))
+溫度匹配： p_T ∝ p^{1/T}，T ∈ {0.5,…,2.5}；殘差 = min_T KL(q‖p_T)，擬合 T = argmin
+</code></pre>
+<p>殘差是溫度解釋不了的部分；純調溫在各 T 下的 <code>KL(p‖p_T)</code> 也回報，供匹配。</p>
+<h2 id="11-統計">11. 統計</h2>
+<p>平均、標準誤 <code>s/√n</code>、95% CI <code>±1.96 s.e.</code>；長度共變量用 Pearson 相關；評審與人工的一致性用 Pearson 和「差距 ≤ 1 的比例」。</p>
+<h2 id="12-訓練資料裡的-budget-forcing">12. 訓練資料裡的 budget forcing</h2>
+<p>思考超過 <code>max_tokens/2</code> 時插入 <code>&lt;/think&gt;</code>，從提示的快取接續生成；這是推論工程，不是本文貢獻。</p>
+</article>
+</body>
+</html>

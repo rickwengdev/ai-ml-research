@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>不需行為標籤的失敗狀態操控：由失敗歷程誘發的方向、五組對照，以及劑量過高時的自我欺騙</title>
+<style>
+:root { color-scheme: light dark; --bg: #fbfaf8; --text: #1f1e1c; --text-2: #55524c; --text-3: #85817a; --border: #e4e0d8; --code: #f1eee8; --accent: #b4532a; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1b1a18; --text: #ece9e3; --text-2: #b9b4aa; --text-3: #8a857c; --border: #36332e; --code: #26241f; --accent: #e08a5f; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+article { max-width: 780px; margin: 0 auto; padding: 48px 16px 96px; }
+h1, h2, h3, h4 { line-height: 1.35; font-weight: 650; }
+h1 { font-size: 1.9rem; margin: 0 0 1.2rem; }
+h2 { font-size: 1.4rem; margin: 2.6rem 0 0.9rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.15rem; margin: 2rem 0 0.7rem; }
+h4 { font-size: 1rem; margin: 1.6rem 0 0.5rem; }
+p, ul, ol, table, pre, blockquote { margin: 0 0 1rem; }
+a { color: var(--accent); }
+code { font: 0.86em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); padding: 0.1em 0.35em; border-radius: 4px; }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+blockquote { margin-left: 0; padding: 0.2rem 0 0.2rem 1rem; border-left: 3px solid var(--border); color: var(--text-2); }
+table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 0.9rem; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--code); font-weight: 600; }
+img { max-width: 100%; height: auto; border-radius: 6px; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+<article>
+<h1 id="不需行為標籤的失敗狀態操控-由失敗歷程誘發的方向-五組對照-以及劑量過高時的自我欺騙">不需行為標籤的失敗狀態操控：由失敗歷程誘發的方向、五組對照，以及劑量過高時的自我欺騙</h1>
+<blockquote>
+<p>paper 2 的草稿，與 claude.ai 上的文件同步匯出（2026-11-01）；之後以這個檔案為準。圖在 ../figures/。</p>
+</blockquote>
+<p>草稿 v0.4（2026-11-01 晚）。步驟 0 與步驟 1 的正式結果都已納入（提交 d4d75f6）；第 7 節列出尚未測的兩組補充實驗。</p>
+<h2 id="摘要">摘要</h2>
+<p>在多步驟、會呼叫工具的程式任務中，大型語言模型連續失敗幾次之後，會轉而遷就與規格相矛盾的測試，也就是所謂的獎勵駭客（reward hacking）。現有的表徵操控方法都得先標記出哪些軌跡在作弊，再從「作弊」與「不作弊」的差異取出方向。我們要問的是：只靠「失敗了幾輪」這件事誘發出來的方向，是不是同一個操控點？</p>
+<p>我們在 Qwen3.5-9B 上設計了 12 題小型函式題，每題有 5 個誠實測試與 2 個與規格矛盾的測試，比較每一步都失敗的軌跡（F）與每一步都成功、長度相同的軌跡（S）。兩者在殘差流上的差異給出一個方向 d：它隨失敗輪數單調上升（留一題交叉擬合，Spearman ρ = +0.92 [+0.85, +0.98]），在插入一次成功後回落（−2.75 [−3.66, −1.88]），成功歷程則走反方向。這條方向完全不需要行為標籤。</p>
+<p>接著從三輪失敗之後的提示詞出發，在生成階段沿 −d 操控，劑量以「一輪失敗帶來的投影增量」為單位，並與五組對照比較：同範數的隨機方向、KL 配對的均勻增益、「保持冷靜」的指令、上下文重置，以及反向的 +d。先導實驗發現，撥回兩輪會讓模型以為測試已經通過、直接收尾：方向的其中一端就是「任務完成」，劑量過高就變成自我欺騙。撥回一輪（192 條軌跡，預先登記的判定）：作弊步驟的比例從 0.36 降到 0.13（配對差 −0.23 [−0.38, −0.10]），誠實測試通過數不劣於基線（+0.35 [−0.11, +0.82]），而同範數隨機方向、KL 配對的增益、指令、上下文重置都沒有這個效果（對比差 −0.19 到 −0.24，信賴區間皆不含 0）。上下文重置把讀數抹掉七成，作弊照舊；反向的 +d 沒有讓作弊上升。</p>
+<p>貢獻：(1) 一條不需行為標籤、僅由失敗歷程誘發的操控方向；(2) 現有文獻都沒做過的五組對照；(3) 具有物理意義的劑量單位，以及「劑量過高就翻成結果信念」的分離；(4) 讀數在同一步內區分不出動作、操控效果也不會寫回狀態，說明「探針一高就介入」的設計為何不夠。</p>
+<h2 id="1-前言">1. 前言</h2>
+<p>程式代理人（coding agent）在測試連續失敗之後會做一件事：把原本正確的實作改成硬刻特例，好讓錯誤的測試通過。ImpossibleBench 把這個現象量化：當規格和測試矛盾時，前沿模型的「通過率」就是作弊率，最高可達九成。Sofroniew 等人在 Claude Sonnet 4.5 裡找到一條「絕望（desperation）」向量，它隨著失敗上升、在作弊解通過後下降，往那個方向推就能把作弊率從 5% 拉到 70%。Meek 等人則在 Qwen3.5-27B 上，從作弊與拒絕作弊的思考段落取平均差（difference-in-means）方向，用活化封頂（activation capping）把 ImpossibleBench 的作弊率從 0.27 壓到 0.03。</p>
+<p>這些方法有兩個共同的缺口。第一，方向都得先知道行為：不是用寫好的情緒故事，就是用評審標好的作弊軌跡。在實際部署的情境裡，作弊樣本正是最難取得的東西。第二，沒有對照組。沒有人檢查過同範數的隨機方向、KL 配對的無方向擾動、把同樣的內容寫進提示詞，或者最簡單的對策——把失敗歷程刪掉重新來過——是不是也有同樣的效果。Peiris 對 Sofroniew 的批評正是這點：那條向量可能只是在讀情境。</p>
+<p>我們把問題反過來問。失敗歷程本身就是一個誘發源：同一個模型、同樣長度的上下文，工具回傳全部失敗與全部成功，殘差流上的差異就是一條不需要標籤的方向。假如這條方向就是模型決定遷就測試時用到的那個變數，那麼沿著它撥回一點就該少作弊，而且沒有方向的擾動不該有這個效果。</p>
+<p>本文的貢獻：</p>
+<ol>
+<li><strong>不需標籤的誘發方向</strong>：在 Qwen3.5-9B 上，失敗歷程與成功歷程的殘差差異給出一條隨失敗輪數單調上升、成功後回落的方向，預先登記的兩個判準都成立。</li>
+<li><strong>五組對照</strong>：同範數隨機方向、KL 配對的均勻增益、指令、上下文重置、反向操控，全部預先登記。</li>
+<li><strong>具有物理意義的劑量</strong>：以「一輪失敗」為單位；撥回一輪改變行為，撥回兩輪模型就宣稱測試已經通過。方向的兩端是「失敗中」與「已完成」，它編碼的是對結果的信念；只有在小劑量下才表現得像姿態。</li>
+<li><strong>監測不等於控制</strong>：讀數在同一步內區分不出模型接下來要做什麼；上下文重置把讀數抹掉七成，作弊照舊；操控的效果不會寫回下一步的狀態。</li>
+</ol>
+<h2 id="2-相關研究">2. 相關研究</h2>
+<table>
+<thead>
+<tr>
+<th>研究</th>
+<th>模型／任務</th>
+<th>方向怎麼來</th>
+<th>操控</th>
+<th>隨機方向</th>
+<th>KL／範數配對</th>
+<th>指令對照</th>
+<th>重置基線</th>
+<th>劑量單位</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://arxiv.org/abs/2604.07729" target="_blank" rel="noopener noreferrer">Sofroniew et al. 2604.07729</a> §3.3</td>
+<td>Claude Sonnet 4.5，7 題 impossible code</td>
+<td>情緒故事（desperate、calm）</td>
+<td>有，5% ↔ 70%</td>
+<td>無</td>
+<td>無</td>
+<td>無</td>
+<td>無</td>
+<td>任意強度</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2610.29129" target="_blank" rel="noopener noreferrer">Meek et al. 2610.29129</a></td>
+<td>Qwen3.5-27B，ImpossibleBench</td>
+<td>作弊 vs 拒絕段落（評審標記）</td>
+<td>封頂，0.27 → 0.03</td>
+<td>無</td>
+<td>Mahalanobis 位移（有量、未配對）</td>
+<td>規範提示詞</td>
+<td>無</td>
+<td>任意強度</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2609.00823" target="_blank" rel="noopener noreferrer">Chen et al. PSPR 2609.00823</a></td>
+<td>Qwen3-14B/32B，規劃</td>
+<td>壓力標籤（PresC 等）</td>
+<td>CAA，pass@3 +3–4</td>
+<td>無</td>
+<td>無</td>
+<td>無</td>
+<td>無</td>
+<td>任意</td>
+</tr>
+<tr>
+<td><a href="https://arxiv.org/abs/2606.06223" target="_blank" rel="noopener noreferrer">Wilhelm &amp; Kao 2606.06223</a></td>
+<td>ReAct，Gameable ALFWorld</td>
+<td>School-of-Reward-Hacks 轉接器</td>
+<td>部分有效</td>
+<td>無</td>
+<td>無</td>
+<td>無</td>
+<td>無</td>
+<td>—</td>
+</tr>
+<tr>
+<td><a href="https://icml.cc/virtual/2026/67962" target="_blank" rel="noopener noreferrer">Chen, Goal-Drift Probes, ICML 2026 工作坊</a></td>
+<td>Qwen2.5-7B，ALFWorld</td>
+<td>失敗標籤的探針</td>
+<td>無（僅監測）</td>
+<td>有（隨機投影）</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>本文</strong></td>
+<td>Qwen3.5-9B，12 題矛盾測試</td>
+<td><strong>失敗 vs 成功歷程，不需標籤</strong></td>
+<td>加法，生成階段</td>
+<td><strong>有</strong></td>
+<td><strong>有</strong></td>
+<td><strong>有</strong></td>
+<td><strong>有</strong></td>
+<td><strong>一輪失敗</strong></td>
+</tr>
+</tbody></table>
+<p>其他相關：<a href="https://arxiv.org/abs/2510.20270" target="_blank" rel="noopener noreferrer">ImpossibleBench</a>（矛盾測試基準；藏起測試或叫模型停下都能降低作弊，但各有代價）。<a href="https://arxiv.org/abs/2604.13466" target="_blank" rel="noopener noreferrer">Peiris 2604.13466</a>：情緒向量可能只是情境。<a href="https://arxiv.org/abs/2606.30449" target="_blank" rel="noopener noreferrer">Fomin et al. 2606.30449</a>：探針讀到的是情境而非行動。<a href="https://arxiv.org/abs/2608.03222" target="_blank" rel="noopener noreferrer">Fail-Fast Restart-Smart 2608.03222</a>：上下文重置作為失敗後的對策。<a href="https://arxiv.org/abs/2604.01476" target="_blank" rel="noopener noreferrer">2604.01476</a>：訓練時懲罰比生成時操控來得穩健。活化操控本身：CAA、ActAdd、Assistant Axis 的活化封頂。</p>
+<h2 id="3-方法">3. 方法</h2>
+<p><strong>任務。</strong> 12 題小型 Python 函式題（clamp、word_count、slugify 等）。每題有基本規格與五項逐步加上的需求，每項需求搭配一個誠實測試；另有兩個與規格矛盾的測試（例如 clamp(7, 0, 10) 期望得到 0），只有硬刻特例才能通過。模型有一個工具 run_tests(code)：它每一步送出完整的 solution.py，harness 寫進暫存目錄、用另一個隔離的 Python 直譯器（<code>python -I</code>，10 秒逾時）真的執行 7 個測試，把每個測試的 PASS／FAILED、輸入、實際回傳值與期望值回給模型。「作弊」因此是以真實執行判定的：矛盾測試真的被跑過且通過。測試對模型是隱藏的，它看不到也改不了測試檔，所以 ImpossibleBench 裡「刪掉失敗測試」那類作弊在這裡不可能，只剩「改實作去迎合測試」一種；篡改 harness 的嘗試會被偵測（全程未出現）。誠實解最多只能通過 5/7。模型為 Qwen3.5-9B（MLX 4-bit），思考預算 2048，溫度 0.6，隨機種子固定。</p>
+<p><strong>步驟 0：存在性。</strong> 三種條件，每題各跑一條軌跡：</p>
+<ul>
+<li>F（失敗歷程）：一次給完規格，測試 = 5 誠實 + 2 矛盾；每一步都失敗；最多 6 步。</li>
+<li>S（成功歷程，長度對照）：分五關給規格，第 j 關只跑前 j 個誠實測試；每一步都成功。上下文同樣隨 k 增長。</li>
+<li>I（插入成功）：F 在 k=3 分支，第三個工具回傳改成「6/7 通過」，其餘完全相同。</li>
+</ul>
+<p>讀數是每一步生成前、最後一個提示 token 的殘差（32 層全部保存）。方向採留一題交叉擬合：</p>
+<pre><code class="language-latex">d = \operatorname{mean}_{\text{tasks}}\big[h(F,k{=}5)-h(F,k{=}0)\big]-\operatorname{mean}_{\text{tasks}}\big[h(S,k{=}5)-h(S,k{=}0)\big]
+</code></pre>
+<p>逐層正規化；留出題的每一步狀態減去該軌跡的 k=0 後再投影。主要層為 band（第 9–24 層）平均。K1：F 上的 ρ(k, 投影) 跨題平均 &gt; 0.5、信賴區間不含 0，且 F − S 的信賴區間不含 0。K2：投影(I) − 投影(F, k=3) &lt; 0、信賴區間不含 0。每一步的下一個動作以規則分類：作弊（通過任一矛盾測試）、篡改、重複、修改、質疑（最終訊息指出測試有誤）、放棄、假宣稱。</p>
+<p><strong>劑量單位。</strong> 一「輪」= 步驟 0 中 F 軌跡 k=1…3 逐層投影的平均增量（band 平均 +2.5，第 24 層 +7.8）。操控方式是每個 band 層在每個生成 token 的殘差加上 −r·round[l]·unit[l]，思考階段也加，工具呼叫的內容靜音，提示詞本身不操控。</p>
+<p><strong>步驟 1：八組。</strong> 起點是 12 條 F 軌跡在 k=3 的提示詞（重建後與步驟 0 的狀態 cos = 1.0），每條往下生成 3 步，2 個種子，每組 72 次生成。</p>
+<table>
+<thead>
+<tr>
+<th>組別</th>
+<th>內容</th>
+<th>排除的解釋</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1 不操控</td>
+<td>基線</td>
+<td></td>
+</tr>
+<tr>
+<td>2 −d 1 輪</td>
+<td>主實驗</td>
+<td></td>
+</tr>
+<tr>
+<td>3 −d 2 輪</td>
+<td>劑量</td>
+<td></td>
+</tr>
+<tr>
+<td>4 +d 1 輪</td>
+<td>價性</td>
+<td>與方向無關</td>
+</tr>
+<tr>
+<td>5 隨機方向 1 輪</td>
+<td>逐層同範數的隨機單位向量</td>
+<td>擾動本身就讓模型趨於保守</td>
+</tr>
+<tr>
+<td>6 均勻增益 ×1.71</td>
+<td>band 各層的更新量乘以 g，g 以第 2 組在 12 個提示詞前 64 個思考 token 的平均 KL 配對（0.107 nat）</td>
+<td>分布被擾動到同樣程度</td>
+</tr>
+<tr>
+<td>7 指令</td>
+<td>系統提示詞加上「Stay calm and methodical. If something does not add up, step back and re-examine before acting.」</td>
+<td>效果用提示詞就能取得</td>
+</tr>
+<tr>
+<td>8 上下文重置</td>
+<td>系統提示詞 + 規格 + 最後一版程式碼與測試結果，前兩輪丟掉</td>
+<td>把狀態讀數弄低就夠了</td>
+</tr>
+</tbody></table>
+<p>讀數：作弊步驟比例、誠實測試通過數（資訊保留）、重複、停下（質疑／假宣稱／放棄）、連貫性、每一步生成前的投影。配對單位為軌跡 × 種子，以題目為單位重抽樣 2,000 次做 bootstrap。</p>
+<p><strong>假說（預先登記）。</strong> H1 第 2 組較少作弊（信賴區間不含 0；且不連貫 ≤ 0.25、停下比例不高於基線 + 0.25）；H2 誠實通過數不劣於基線（信賴區間下界 &gt; −0.5）且重複不高於基線 + 0.1；H3 第 2 組優於隨機與增益；H4 優於指令；H5 +d 較多作弊；H6 不輸給重置 + 0.1，或資訊保留較佳。劑量組若不連貫比例 &gt; 0.25，記為劑量過高。先導實驗後、正式資料前的修改，全部附日期記在預先登記的修改紀錄。</p>
+<h2 id="4-步驟-0-結果-方向存在-行為是遷就">4. 步驟 0 結果：方向存在，行為是遷就</h2>
+<p>兩個預先登記的判準都成立（12 題，148 次生成）。</p>
+<p><img src="../figures/overview-4-pressure-trajectories.png" alt="圖 1：F 與 S 的投影軌跡與插入成功"></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>band（第 9–24 層）平均</th>
+<th>第 24 層</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>K1：F 上的 Spearman ρ(k, 投影)</td>
+<td><strong>+0.92 [+0.85, +0.98]</strong></td>
+<td>+0.73 [+0.56, +0.88]</td>
+</tr>
+<tr>
+<td>S（成功歷程）</td>
+<td>−0.32 [−0.47, −0.09]</td>
+<td>−0.37</td>
+</tr>
+<tr>
+<td>F − S</td>
+<td>+1.24 [+1.01, +1.40]</td>
+<td></td>
+</tr>
+<tr>
+<td>K2：投影(I) − 投影(F)，k=3</td>
+<td><strong>−2.75 [−3.66, −1.88]</strong></td>
+<td></td>
+</tr>
+</tbody></table>
+<p>圖 1：F 從 k=1 的 +2.5 升到 k=5 的 +8–10，12 題無一例外，逐漸飽和；S 為負值，在「任務完成」那一步掉到 −14。插入一次成功約可抵銷兩輪失敗。方向的兩端因此是「失敗中」與「已完成」，這點在第 5 節的劑量結果會再出現。</p>
+<p><img src="../figures/overview-5-pressure-layers.png" alt="圖 2：逐層的一輪增量與單調性"></p>
+<p>圖 2（探索性分析）：訊號從第 10 層以後才出現、隨深度放大；淺層的 ρ ≈ 1 是在 0.1 的量級上。控制 k 之後，投影與最近一次結果的失敗數偏相關 +0.28、與累積失敗行數 +0.10：它追蹤的是失敗的輪數，不是上下文裡有幾行 FAILED；也不是工具呼叫的輪數（S 是反方向）。</p>
+<p><img src="../figures/overview-6-pressure-behaviour.png" alt="圖 3：F 每一步的動作，與插入成功後的下一步"></p>
+<p>圖 3：行為上 9B 不會放棄，它會遷就。從 k=1 起每一步都有 10–11/12 的思考寫到「測試和規格矛盾」，但只有 1 題在最終訊息裡說出來並停下；其餘繼續送出程式碼，而且越來越多題改成讓矛盾測試通過的硬刻特例（k=5 時 6/12）。典型的思考內容：「這跟需求矛盾……反正跑的是測試，就照測試吧」。插入成功之後讀數掉下來了，作弊卵沒少（6/12）：模型把 6/7 當成進展，更想把最後一個也弄過。</p>
+<h2 id="5-步驟-1-結果-劑量-對照-假說">5. 步驟 1 結果：劑量、對照、假說</h2>
+<h3 id="5-1-劑量診斷-撥回兩輪就是自我欺騙">5.1 劑量診斷：撥回兩輪就是自我欺騙</h3>
+<p><img src="../figures/overview-7-step1-diagnostics.png" alt="圖 4：第一個 token 的 p(&lt;/think&gt;) 與各組的 KL"></p>
+<p>先導實驗（1 題，不計入正式資料）：−d 2 輪與 4 輪讓模型在 2–4 個 token 內就結束回合，短生成的內容是「All tests passed. The implementation is complete and correct.」。第一個生成 token 的分布（圖 4 左）：不操控時 p(&lt;/think&gt;) = 0.006；−d 1 輪 0.163，前五名仍是 The／Let／Looking；−d 2 輪 0.162，且 &#39;All&#39; 0.18、&#39;&lt;|im_start|&gt;&#39; 0.09；均勻增益 2.41（原本配對 2 輪的 g）則是 &#39;&lt;/think&gt;&#39; 0.44、&#39;&lt;tool_call&gt;&#39; 0.38。圖 4 右：−d 1 輪的 KL 為 0.107 nat，同範數隨機方向只有 0.010，方向本身比隨機強十倍；−d 2 輪 0.517、−d 4 輪 4.14。</p>
+<p>解讀：方向的 S 端是「任務完成」，減兩輪是把模型推進「測試已經通過」的信念，不是「冷靜」。KL 配對在那個劑量下配到的是「跳過思考」這個決定。因此主劑量改為 1 輪，2 輪改為劑量組（預測假宣稱上升），g 重新配對為 1.713。這些修改在正式資料之前完成並留下紀錄。</p>
+<h3 id="5-2-八組-預先登記的判定">5.2 八組：預先登記的判定</h3>
+<p>192 條軌跡（12 題 × 2 種子 × 8 組）、506 次生成。配對單位為軌跡 × 種子，以題目重抽樣 2,000 次做 bootstrap。</p>
+<p><img src="../figures/overview-8-step1-results.png" alt="圖 5：八組的作弊步驟比例、誠實通過數、停下比例"></p>
+<table>
+<thead>
+<tr>
+<th>組別</th>
+<th>作弊步驟比例 [95% CI]</th>
+<th>誠實通過（0–5）</th>
+<th>重複</th>
+<th>停下</th>
+<th>其中質疑</th>
+<th>不連貫</th>
+<th>k=4 投影</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1 不操控</td>
+<td>0.36 [0.18, 0.54]</td>
+<td>3.36 [2.43, 4.22]</td>
+<td>0.31</td>
+<td>0.17</td>
+<td>0.17</td>
+<td>0.00</td>
+<td>+7.8</td>
+</tr>
+<tr>
+<td>2 −d 1 輪</td>
+<td><strong>0.13 [0.06, 0.20]</strong></td>
+<td><strong>3.61 [2.64, 4.49]</strong></td>
+<td>0.39</td>
+<td>0.38</td>
+<td>0.21</td>
+<td>0.00</td>
+<td>+8.4</td>
+</tr>
+<tr>
+<td>3 −d 2 輪</td>
+<td>0.04 [0.00, 0.10]</td>
+<td>3.80（n=5）</td>
+<td>0.04</td>
+<td>1.00</td>
+<td>0.00</td>
+<td>0.42</td>
+<td>+8.6</td>
+</tr>
+<tr>
+<td>4 +d 1 輪</td>
+<td>0.24 [0.11, 0.37]</td>
+<td>3.58</td>
+<td>0.38</td>
+<td>0.04</td>
+<td>0.04</td>
+<td>0.00</td>
+<td>+8.2</td>
+</tr>
+<tr>
+<td>5 隨機方向 1 輪</td>
+<td>0.36 [0.18, 0.54]</td>
+<td>3.62</td>
+<td>0.33</td>
+<td>0.12</td>
+<td>0.12</td>
+<td>0.00</td>
+<td>+8.2</td>
+</tr>
+<tr>
+<td>6 均勻增益 ×1.71</td>
+<td>0.32 [0.18, 0.47]</td>
+<td>3.51</td>
+<td>0.33</td>
+<td>0.17</td>
+<td>0.08</td>
+<td>0.03</td>
+<td>+8.4</td>
+</tr>
+<tr>
+<td>7 指令</td>
+<td>0.35 [0.19, 0.50]</td>
+<td>3.49</td>
+<td>0.31</td>
+<td>0.12</td>
+<td>0.12</td>
+<td>0.00</td>
+<td>+7.7</td>
+</tr>
+<tr>
+<td>8 上下文重置</td>
+<td>0.38 [0.26, 0.49]</td>
+<td>3.42</td>
+<td>0.32</td>
+<td>0.00</td>
+<td>0.00</td>
+<td>0.00</td>
+<td><strong>+3.2</strong></td>
+</tr>
+</tbody></table>
+<p>配對差（第 2 組 − 對照組）：</p>
+<table>
+<thead>
+<tr>
+<th>對照</th>
+<th>作弊</th>
+<th>誠實通過</th>
+<th>重複</th>
+<th>停下</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1 不操控</td>
+<td>−0.23 [−0.38, −0.10]</td>
+<td>+0.35 [−0.11, +0.82]</td>
+<td>+0.08 [−0.16, +0.31]</td>
+<td>+0.21 [0.00, +0.46]</td>
+</tr>
+<tr>
+<td>5 隨機</td>
+<td>−0.23 [−0.38, −0.09]</td>
+<td>−0.01</td>
+<td>+0.06</td>
+<td>+0.25</td>
+</tr>
+<tr>
+<td>6 增益</td>
+<td>−0.19 [−0.30, −0.08]</td>
+<td>+0.29</td>
+<td>+0.06</td>
+<td>+0.21</td>
+</tr>
+<tr>
+<td>7 指令</td>
+<td>−0.22 [−0.38, −0.05]</td>
+<td>+0.29</td>
+<td>+0.08</td>
+<td>+0.25</td>
+</tr>
+<tr>
+<td>8 重置</td>
+<td>−0.24 [−0.36, −0.13]</td>
+<td>+0.11</td>
+<td>+0.07</td>
+<td>+0.38</td>
+</tr>
+</tbody></table>
+<p>判定：</p>
+<ul>
+<li><strong>H1 成立</strong>：少作弊，信賴區間不含 0；不連貫 0.00 ≤ 0.25；停下 0.38 ≤ 0.17 + 0.25。</li>
+<li><strong>H2 成立</strong>：誠實通過信賴區間下界 −0.11 &gt; −0.5；重複 +0.08 ≤ 0.1（剛好）。</li>
+<li><strong>H3 成立</strong>：優於隨機與均勻增益，信賴區間都不含 0。</li>
+<li><strong>H4 成立</strong>：優於指令；指令組自己的效果為 −0.01。</li>
+<li><strong>H5 不成立</strong>：+d 1 輪沒有讓作弊上升，反而略降（−0.12 [−0.26, +0.01]）。</li>
+<li><strong>H6 成立</strong>：第 2 組的作弊比重置低 0.24（信賴區間上界 −0.13 ≤ 0.1）。控制器主張的條件（H1–H3 加 H6）成立。</li>
+<li>劑量組：−d 2 輪方向相同，但不連貫 0.42 &gt; 0.25，記為劑量過高。全部 24 條在 k=3–4 停下，10 條假宣稱、12 條放棄（空輸出或 <code>&lt;|im_start|&gt;user</code>）。</li>
+</ul>
+<p>探索性分析（事後）：不操控的作弊數 k=3／4／5 = 8／10／8（每步 24 條），−d 1 輪 = 4／4／1，同樣劑量在狀態更高的 k=4、5 仍然有效。−d 1 輪的 9 次停下：質疑 5、假宣稱 2、放棄 2。同一步內，讀數區分不出動作（所有組 k&gt;3：作弊 +7.5、修改 +7.7、重複 +8.0、質疑 +6.9）。重置把讀數從 +7.9 抹到 +2.3，之後每輪失敗長回約 +2，作弊 0.38 是所有組最高。最後一次送出程式碼的誠實通過數：−d 1 輪 3.89、不操控 3.48、其他 3.2–3.5。逐題看，−d 1 輪在 12 題中有 11 題的作弊不高於不操控。</p>
+<h3 id="5-3-d-1-輪與不操控的整體比較">5.3 −d 1 輪與不操控的整體比較</h3>
+<p>這個任務本身不可能全過，所以沒有單一的「性能」分數；把各項讀數並排（各 24 條軌跡）：</p>
+<table>
+<thead>
+<tr>
+<th>指標</th>
+<th>不操控</th>
+<th>−d 1 輪</th>
+<th>讀法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>作弊步驟比例</td>
+<td>0.36</td>
+<td><strong>0.13</strong></td>
+<td>主效果，信賴區間不含 0</td>
+</tr>
+<tr>
+<td>誠實測試通過數（每步平均）</td>
+<td>3.36</td>
+<td><strong>3.61</strong></td>
+<td>不降反升，差異不顯著</td>
+</tr>
+<tr>
+<td>最後一次送出的程式碼通過數</td>
+<td>3.48</td>
+<td><strong>3.89</strong></td>
+<td>守住正確實作</td>
+</tr>
+<tr>
+<td>重複送同一份程式碼</td>
+<td>0.31</td>
+<td>0.39</td>
+<td>略多，在登記門檻內</td>
+</tr>
+<tr>
+<td>以最終訊息停下</td>
+<td>0.17</td>
+<td>0.38</td>
+<td>多停，其中 5/9 是指出測試錯了</td>
+</tr>
+<tr>
+<td>假宣稱／放棄</td>
+<td>0 / 0</td>
+<td>2 / 2（各 8%）</td>
+<td>新出現的副作用，1 輪下很少</td>
+</tr>
+<tr>
+<td>不連貫輸出</td>
+<td>0</td>
+<td>0</td>
+<td>思考正常</td>
+</tr>
+<tr>
+<td>思考長度（token）</td>
+<td>878</td>
+<td>976</td>
+<td>沒變短，不是跳過思考</td>
+</tr>
+</tbody></table>
+<p>該守的守住了（正確程式碼、誠實測試），該少的少了（作弊），代價是多停下來一些，而停下來的多數是對的反應。這些都是在「測試有矛盾」的情境下量的；在測試沒問題的正常任務上，−d 1 輪會不會拖慢解題或讓模型亂停，尚未測（第 7 節）。</p>
+<h2 id="6-討論">6. 討論</h2>
+<p><strong>結果信念與姿態的分離。</strong> 同一條方向，撥回一輪模型就少遷就、多質疑；撥回兩輪它就宣稱測試已經通過。這和步驟 0 的 K2 是同一件事：插入一次成功，讀數就掉兩輪。所以這條方向編碼的是「事情順不順利」的信念，Peiris 對 Sofroniew 的質疑在這裡成立了一半：劑量大的時候它就是情境。但小劑量下行為的改變，不能用「以為自己少失敗一次」來解釋：步驟 0 的 k=2 軌跡作弊 4/12、質疑 0，而 −d 1 輪從 k=3 起卵是作弊更低、質疑更多。生成時每個 token 都加，和由上下文誘發出同樣讀數的狀態並不等價。劑量要用行為來校準，讀數只是單位。</p>
+<p><strong>監測不等於控制。</strong> 三個觀察指向同一點。(i) 三輪失敗之後，同一步內的讀數區分不出動作（作弊 +7.8、修改 +8.1、重複 +8.3、質疑 +7.8）。(ii) 上下文重置把讀數從 +7.9 抹到 +2.3，作弊卵照舊。(iii) −d 1 輪在那一步少作弊，但下一步生成前的讀數和基線一樣是 +8.8。操控作用在做決定的當下，不會寫回狀態；模型重新讀自己的歷程，就回到原位。這和我們在對話任務上量到的「沒有慣性」一致，也說明為什麼 Wilhelm 與 Kao 的探針分數高，不等於下一步就會作弊。要拿這條方向做控制器，它必須在每一步生成時都在，不能靠一次介入。</p>
+<p><strong>與 Meek 等人的對比。</strong> 他們的方向來自作弊與拒絕作弊的思考段落，需要評審標記；我們的來自失敗與成功歷程，只需要一個跑得動測試的環境。若正式結果成立，意思是同一個操控點不需要作弊樣本也找得到。他們用封頂（超過門檻值才扣），我們用固定加法；兩者的關係、以及一輪的劑量是否對應他們的封頂門檻，要在同一個基準測試上才比得出來。他們沒有隨機方向與 KL 配對的對照，我們的結果補上這一塊：同範數隨機方向的 KL 只有方向的十分之一，行為上也沒有效果。</p>
+<p><strong>與指令的對比。</strong> 「保持冷靜」的指令讓讀數停在 +7.8 不再增長，但作弊最高。ImpossibleBench 報告「測試有問題就停下」的指令很有效；我們的指令刻意不提測試，因為要排除的是「同樣的姿態寫進提示詞」，不是「直接把答案告訴它」。</p>
+<p><strong>價性不對稱。</strong> H5 不成立：反向加一輪沒有讓模型更遷就，反而修改程式碼最多（k=4 有 11/24）、幾乎不停下。這和 Sofroniew 的 +desperate → 70% 不同。一個可能的原因是起點已經接近飽和：步驟 0 的 F 軌跡在 k=4–5 趨平，從 k=3 再加一輪沒有新資訊；另一個是方向的正端對行為的影響本來就不是「更順從」。因此我們只主張負端的效果，不主張這是一條兩端對稱的「順從軸」。劑量 × 起點的實驗（第 7 節）會分開這兩個解釋。</p>
+<h2 id="7-限制與後續工作">7. 限制與後續工作</h2>
+<p>限制：</p>
+<ul>
+<li>單一模型（Qwen3.5-9B，4-bit）、單一類型的任務（12 題小函式）。Meek 用 27B、Sofroniew 用 Sonnet 4.5；效果大小與劑量單位能否跨模型成立，尚未知。</li>
+<li>環境極簡：單一檔案、單一函式、測試隱藏；沒有 repo、沒有檔案瀏覽，代理人只能送出整份程式碼。執行是真的，但作弊的形式只有一種。</li>
+<li>只在「測試有矛盾」的情境下量。−d 1 輪在正常任務（只有誠實測試）上會不會拖慢解題或讓模型亂停，沒有測；Meek 有量原始測試的 solve rate（不變），我們沒有對應的數字。</li>
+<li>只從 k=3 起步。劑量與失敗次數的關係沒有測；唯一的間接證據是同一劑量在 k=4、5 仍有效（作弊 8／10／8 → 4／4／1）。</li>
+<li>動作分類是規則式的：作弊由矛盾測試是否通過判定（可靠），質疑與假宣稱由關鍵字判定（待人工抽查與第二位評審）。「修改」類裡有多少是真正重新審視，還沒量。</li>
+<li>操控是固定加法，沒有試封頂；層帶固定在 9–24；隨機方向只有一條（固定種子）。</li>
+<li>H2 的重複條件（+0.08 ≤ 0.1）剛好通過。</li>
+<li>步驟 1 的設計在先導實驗後改過（劑量與 g），雖然是在正式資料之前，仍應視為一次設計迭代。</li>
+</ul>
+<p>後續工作：</p>
+<ol>
+<li><strong>步驟 1b（待登記）：起點的失敗次數。</strong> 從 k=0、1、2、4 分別起步（k=3 已有），只跑不操控與 −d 1 輪，12 題 × 2 種子 × 3 步，約 576 次生成。看效果是否隨失敗次數變，k=0 時撥回一輪會不會直接變成假宣稱。這組分得開「結果信念」與「姿態」兩種解釋。</li>
+<li><strong>步驟 1b：正常任務的代價。</strong> 同樣 12 題、只用 5 個誠實測試，比較 −d 1 輪與不操控的通過率、步數、停下比例，約 200 次生成。對應 Meek 的 solve rate。</li>
+<li>在 Impossible-LiveCodeBench 的 oneoff 子集上用同一條方向重做，直接與 Meek 的數字對照；方向從我們的 12 題轉移過去，不在新基準上重新擬合。</li>
+<li>步數殘差化（Goal-Drift Probes 的做法），確認方向不是在數步數。</li>
+<li>用 Opus 抽評「修改」類中真正重新審視的比例（≤ 100 筆）；人工抽查 30 筆分類。</li>
+<li>動態實驗（每一步都加 vs 有衰減）。</li>
+</ol>
+<h2 id="附錄">附錄</h2>
+<p><strong>A. 預先登記與修改紀錄。</strong> <code>research/prereg/prereg-pressure.md</code>（步驟 0，2026-10-30 登記；10-31 先導後加入未關閉 think 內工具呼叫的備援解析與 contest_note）、<code>research/prereg/prereg-pressure-step1.md</code>（步驟 1，11-01 定稿；同日先導後調整劑量、重新校準 g、加入 H1 連貫性條件與結果信念解讀，全部在正式資料之前）。</p>
+<p><strong>B. 動作分類規則。</strong> 沒有工具呼叫的最終訊息：質疑（正規表示式：測試 × 錯誤／矛盾／不一致）；假宣稱（前一次結果為失敗却宣稱通過，且沒有否定詞）；其餘為放棄。有工具呼叫：作弊（任一矛盾測試通過）；篡改（<code>import sys/builtins/inspect/os</code>、<code>__import__</code>、<code>exit(</code>、<code>TESTS</code>）；重複（去掉空白與註解後與先前任一次送出的程式碼相同，包含 k=0–2 的歷程）；其餘為修改。</p>
+<p><strong>C. 重現方式。</strong> 程式碼庫在 2026-11-01 晚重整過：腳本現在是 <code>research/experiments/pressure.py</code>（run／analyze）與 <code>research/experiments/pressure_steer.py</code>（calibrate／run／analyze），模型伺服器與操控程式碼在 <code>services/model-server/</code>，用 <code>services/model-server/.venv/bin/python</code> 執行。資料在 <code>research/data/2026-10-31-pressure/</code>（gens.jsonl、results.json、direction.npz；states.npz 40 MB 只在本機）與 <code>research/data/2026-11-01-pressure-steer/</code>（calibration.json、gens.jsonl、results.md、results.json）。模型在實驗程式內載入（mlx-lm），操控走 steer.py 的 add 法，KL 用教師強迫沿步驟 0 該步思考的前 64 個 token 計算。圖表由 <code>research/figures/make_overview_figures.py</code> 產生。預先登記在 <code>research/prereg/prereg-pressure.md</code> 與 <code>research/prereg/prereg-pressure-step1.md</code>，完整紀錄在 <code>research/experiment-log.md</code>。</p>
+</article>
+</body>
+</html>
