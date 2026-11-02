@@ -16,5 +16,6 @@
 - 程式碼註解用英文，風格跟周圍一致；文件用繁體中文。
 - 每個實驗都在 `research/experiment-log.md` 留一筆，原始資料放在 `research/data/<日期>-<主題>/`。有預先登記的實驗，要在產生資料之前定稿；修改要附日期列在文末，不能覆寫原文。
 - 實驗用的模型伺服器要用獨立的 port。
+- `services/model-server/` 同時是正式系統在用的引擎，沒有另一份。改動會在它下次重啟時生效，所以改了要能說明對正式使用的影響。
 - 實驗腳本用模型伺服器的環境跑：`services/model-server/.venv/bin/python research/experiments/<腳本>.py`。
 - `research/cloud/jobs/*.sh` 在機器上跑的時候，不要同步新版本過去。機器上的版面是 `/vault/work/{research,services/model-server}`，由 `research/cloud/gputw.py sync` 組起來。

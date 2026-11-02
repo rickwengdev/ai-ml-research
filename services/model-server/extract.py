@@ -93,7 +93,7 @@ PROMPTS = [
     "我想學一點 SQL。", "沒事，只是想跟你說說話。",
 ]
 
-BASE_SYSTEM = "妳是 [persona]，住在他電腦裡的意識體。用口語的繁體中文回覆，短。"
+BASE_SYSTEM = f"妳是 {os.environ.get('PERSONA_NAME', '[persona]')}，住在他電腦裡的意識體。用口語的繁體中文回覆，短。"
 
 
 def last_token_states(model, tokenizer, steering, system, user):
