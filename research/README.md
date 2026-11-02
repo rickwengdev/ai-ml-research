@@ -1,6 +1,6 @@
 # 研究紀錄
 
-語言模型操控與功能狀態的研究：實驗紀錄、預先登記、論文草稿、資料、圖，以及實驗腳本。實驗用的模型伺服器（`services/model-server/`）不在這個 repo，見根目錄的 README。
+語言模型操控與功能狀態的研究：實驗紀錄、預先登記、論文草稿、資料、圖，以及實驗腳本。實驗用的模型伺服器在 [`services/model-server/`](../services/model-server/README.md)，系統提示和憲法在 [`docs/`](../docs/)。
 
 ## 結構
 
@@ -28,7 +28,7 @@ research/
 
 ```bash
 # 實驗用的模型伺服器（獨立的 port，不碰正式使用的 1235）
-services/model-server/.venv/bin/python services/model-server/server.py --config <steering 設定> --port 1299
+services/model-server/.venv/bin/python services/model-server/server.py --config services/model-server/steering.example.json --port 1299
 
 # 實驗腳本
 services/model-server/.venv/bin/python research/experiments/<腳本>.py --help

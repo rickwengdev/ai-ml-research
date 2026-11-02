@@ -1,0 +1,10 @@
+# PyTorch backend (torch_engine.py) for CUDA boxes; torch itself comes with the container image (pytorch/pytorch:*-cuda*).
+# On a Mac for smoke tests: pip install torch first, then this file.
+transformers>=5.20
+accelerate>=1.0
+huggingface_hub>=0.30
+safetensors>=0.4
+sentencepiece
+numpy
+scipy
+requests

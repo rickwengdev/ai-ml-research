@@ -1,0 +1,19 @@
+{
+  "models": [
+    {
+      "id": "mlx-community/Qwen3.5-4B-MLX-4bit",
+      "kind": "chat"
+    },
+    {
+      "id": "mlx-community/Qwen3.5-2B-4bit",
+      "kind": "chat"
+    },
+    {
+      "id": "mlx-community/bge-m3-mlx-fp16",
+      "kind": "embedding"
+    }
+  ],
+  "strength": 2.5,
+  "mode": "generate",
+  "mute_tool_calls": true
+}

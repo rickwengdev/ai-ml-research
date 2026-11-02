@@ -1,0 +1,7 @@
+# The model's local model server (server.py): mlx-lm for the chat models, mlx + tokenizers for the embedding encoder (embed.py).
+mlx-lm>=0.32
+numpy
+tokenizers
+huggingface_hub
+# Experiments (experiments/pe.py): t-quantiles and rank correlations.
+scipy
