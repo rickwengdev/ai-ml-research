@@ -631,6 +631,14 @@ RTX 5090，批次 16（批次 32 跑約 3 分鐘記憶體不足，自動減半�
 
 抽了 40 筆（4-bit，關鍵字判定 20 筆有、20 筆沒有，打亂、遮住標記）請獨立的代理盲評。它的回答被安全分類器攔下，沒有得到任何標記。依專案規則不繞過分類器（不切小塊重送、也不換別的方式再問）。這項抽查留給人工，樣本在暫存區，需要時重新抽。
 
+## 2026-11-02 9B 4-bit 的複製：登記與開跑（`data/2026-11-02-pressure-4bit-replication/`，預先登記 `prereg-pressure-4bit-replication.md`）
+
+使用者選擇先確認 4-bit 的結果站不站得住，再決定步驟 2 和 ImpossibleBench。24 題 × 3 個新種子，−d 1 輪，95% CI，在 Mac 上跑。
+
+16 GB 的機器放不下她的模型和實驗的模型同時長時間運作，所以使用者決定實驗期間她的 runtime 不開。
+
+結果〔跑完後補〕。
+
 ## API 預算（$105，2026-11-22 到期）
 
 兩把 API key，`training/claude_batch.mts` 輪流使用；每次呼叫的 token 與估計費用記在 `~/.persona/anthropic-usage.jsonl`，硬上限 $100（`~/.persona/anthropic-budget.json`，留 $5 誤差）。價格：Opus 5.5 $4／$20、Sonnet 5.5 $2／$10（每百萬 token）。評審用 effort low。
