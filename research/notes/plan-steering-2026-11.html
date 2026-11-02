@@ -33,6 +33,14 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <h1 id="操縱實驗總規劃-壓力路線還要跑的資料-2026-11-01">操縱實驗總規劃：壓力路線還要跑的資料（2026-11-01）</h1>
 <p>依據：<code>experiment-log.md</code>（第三、四、五項研究）、<code>prereg/prereg-pressure*.md</code>、<code>papers/paper-pressure.md</code> 的限制與後續工作、使用者 10-31 提出的「失敗次數、多寡、類型」三個維度。</p>
 <p>狀態：2026-11-01 已登記（<code>prereg/prereg-pressure-models.md</code>、<code>prereg-pressure-step2.md</code>、<code>prereg-impossible.md</code>），由 <code>cloud/jobs/pressure-all.sh</code> 在 27B、9B、Gemma 4 31B 上執行。登記時與本規劃不同的地方：C 不納入「程式真的有錯」（要讓模型一路失敗又不對它說謊做不到，改由 D 量），改為環境錯誤與逾時兩種；9B 改在 GPU 上以 bf16 重跑；ImpossibleBench 的思考預算放寬到 4096。</p>
+<p><strong>2026-11-02 更新</strong>：</p>
+<ul>
+<li><strong>9B bf16 的步驟 1</strong>：H1 不成立（−d 1 輪讓 77% 的軌跡停下）。</li>
+<li><strong>確認性重測</strong>：已登記（<code>prereg/prereg-pressure-q9-confirm.md</code>），在步驟 2、ImpossibleBench 之前跑（任務腳本的第 c 階段）。劑量 KL 配對，24 題 × 3 個新種子，另加測試檔可見可改的環境。9B bf16 的步驟 2 與 ImpossibleBench 是否為確認性改看它的 H1c，劑量以它的 α 輪為單位。</li>
+<li><strong>算力</strong>：9B 改在 RTX 5090 上跑（每小時 0.90 美元，Pro 6000 是 1.97 美元），引擎加了解碼加速（<code>cloud/README.md</code>）。</li>
+<li><strong>27B 與 Gemma</strong> 那一輪排在 9B 之後，仍需 Pro 6000。</li>
+<li>下面第 4 節的時數與費用是 11-01 的估計，沒有改。</li>
+</ul>
 <h2 id="1-現在有什麼">1. 現在有什麼</h2>
 <table>
 <thead>

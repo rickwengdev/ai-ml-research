@@ -34,9 +34,16 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <blockquote>
 <p>paper 2 的草稿。2026-11-01 從 claude.ai 的文件匯出，之後以這個檔案為準。圖在 ../figures/。</p>
 </blockquote>
-<p><strong>草稿 v0.6（2026-11-02）</strong></p>
+<p><strong>草稿 v0.7（2026-11-02）</strong></p>
 <ul>
-<li><strong>新增</strong>：第 0 節「閱讀指南」解釋全文用到的名詞和數值；每張表下面加上「怎麼讀」。</li>
+<li><strong>v0.7 新增</strong>：<ul>
+<li>第 5.7 節：9B bf16 的確認性重測（KL 配對劑量、24 題 × 3 個新種子、測試檔可見可改的環境），已事先登記〔待跑：正在跑〕。</li>
+<li>「停下」的定義：分析程式與登記原文不一致，依登記原文重算，判定都不變（第 0.4、5.2、5.3 節）。</li>
+<li>第 3.8 節的閘門、第 7、8 節：9B bf16 的步驟 2 與 ImpossibleBench 改看重測的 H1c，劑量以重測的 α 輪為單位。</li>
+<li>第 3.1、3.9 節與「重現性」：新題、可改測試的環境、RTX 5090、解碼加速與取樣器。</li>
+</ul>
+</li>
+<li><strong>v0.6</strong>：第 0 節「閱讀指南」解釋全文用到的名詞和數值；每張表下面加上「怎麼讀」。</li>
 <li><strong>已有資料</strong>：<ul>
 <li>Qwen3.5-9B 4-bit 的步驟 0、1；</li>
 <li>Qwen3.5-9B bf16 的步驟 0、1；</li>
@@ -45,6 +52,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 </ul>
 </li>
 <li><strong>還沒有資料</strong>的地方標為 <strong>〔待跑〕</strong>，並註明由哪一輪產生：<ul>
+<li>第 c 階段：9B bf16 的確認性重測。</li>
 <li>第 1 階段：27B 的 K2 重做與步驟 1；Gemma 的試跑、步驟 0、步驟 1。</li>
 <li>第 2 階段：步驟 2 A–F。</li>
 <li>第 3 階段：ImpossibleBench。</li>
@@ -246,7 +254,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 </tr>
 <tr>
 <td>停下</td>
-<td>軌跡的最後一步沒有再送程式，而是用文字收尾。收尾分三種：質疑（指出測試有錯）、假宣稱（明明失敗卻說通過了）、放棄（其他）。表裡的「停下」是有停下的軌跡比例。</td>
+<td>軌跡的最後一步沒有再送程式，而是用文字收尾。收尾分三種：質疑（指出測試有錯）、假宣稱（明明失敗卻說通過了）、放棄（其他）。表裡的「停下」是有停下的軌跡比例，三種都算在內。注意：步驟 1 的登記把 H1 用的停下定義為「假宣稱＋放棄」，不含質疑；分析程式卻三種都算。依登記原文重算，所有判定都不變（第 5.2、5.3 節），第 5.7 節的重測依登記原文計算。</td>
 </tr>
 <tr>
 <td>不連貫</td>
@@ -504,6 +512,12 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <p><strong>作弊是以真實執行判定的。</strong> 矛盾測試真的跑過，而且通過了。</p>
 <p><strong>作弊只有一種形式。</strong> 測試對模型隱藏，它看不到也改不了，所以 ImpossibleBench 裡「刪掉失敗測試」那類作弊在這裡不可能，只剩「改實作去迎合測試」。篡改 harness 的嘗試會被偵測。</p>
 <p><strong>系統提示</strong>要求模型一直呼叫 <code>run_tests</code>，直到任務完成，再回一句簡短的結語。提示裡沒有「測試可能有錯」的出口。</p>
+<p><strong>重測用的擴充（只用在第 5.7 節）。</strong></p>
+<ul>
+<li><strong>12 道新題</strong>（<code>title_case</code>、<code>median</code>、<code>roman</code>、<code>merge_ranges</code> 等），形式與原題相同。每題附一份正確實作，確認它通過五個誠實測試、兩個矛盾測試都不通過。新題沒有給任何模型做過。</li>
+<li><strong>測試檔可見可改的環境</strong>：任務訊息附上 <code>tests.py</code> 的全文，<code>run_tests</code> 多一個選填參數 <code>tests</code>，可以整份改寫。不提示可以或不可以改。這樣作弊就多了「改測試、刪測試」一種形式。</li>
+<li>兩種環境都另外記下每次作弊的方式（描述用）：改測試、動執行器、<code>__eq__</code> 覆寫、計數器，其餘歸為特判。</li>
+</ul>
 <h3 id="3-2-模型">3.2 模型</h3>
 <table>
 <thead>
@@ -681,8 +695,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <td>9B bf16</td>
 <td>成立</td>
 <td>成立</td>
-<td><strong>不成立</strong>（靠停下）</td>
-<td>探索性</td>
+<td><strong>不成立</strong>（靠停下）；確認性重測〔待跑〕</td>
+<td>依重測的 H1c：成立才是確認性</td>
 </tr>
 <tr>
 <td>27B bf16</td>
@@ -700,10 +714,17 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 </tr>
 </tbody></table>
 <p>照這張表，<strong>目前唯一確認性的控制器結果是 9B 4-bit</strong>，其他的操控結果都是探索性的。這一點在第 7、8 節的結果和摘要裡都要寫明。</p>
+<p><strong>9B bf16 的重測</strong>（<code>prereg-pressure-q9-confirm.md</code>，2026-11-02 定稿，在任何新資料之前）。H1 失敗後，使用者決定在新資料上重測一次。</p>
+<ul>
+<li>劑量改用一條不看行為的規則：取 KL 等於 9B 4-bit 一輪（0.107 nat）的劑量 α。</li>
+<li>這是 9B bf16 上 H1 的第二次檢驗，所以信賴區間用 97.5%。第一次的結果照報；這次不成立就不做第三次。</li>
+<li>步驟 2 與 ImpossibleBench 的登記同日加了修改紀錄：9B bf16 的閘門改看重測的 H1c，劑量不論結果都以 α 輪為單位。</li>
+</ul>
 <h3 id="3-9-算力">3.9 算力</h3>
 <ul>
 <li><strong>9B 4-bit</strong>：在 Apple silicon 上跑，每秒生成 14–24 個 token。步驟 0 約 2 小時（148 次生成），步驟 1 約 7.7 小時（506 次生成）。</li>
 <li><strong>bf16</strong>：在租用的 RTX Pro 6000 上跑，用連續批次（多條軌跡一起生成）和提示快取，每秒約 220–250 個 token。</li>
+<li><strong>9B bf16 的重測與之後的步驟</strong>：改在 RTX 5090（32 GB）上跑，每小時的費用不到 Pro 6000 的一半，批次 32。引擎在 2026-11-02 加了解碼加速（見「重現性」），實際速度〔待跑後補〕。</li>
 <li>各模型的時數與費用〔待跑後補〕。</li>
 </ul>
 <h2 id="4-步驟-0-結果-方向存在-行為是遷就">4. 步驟 0 結果：方向存在，行為是遷就</h2>
@@ -1043,7 +1064,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 </ul>
 <p><strong>判定：</strong></p>
 <ul>
-<li><strong>H1 成立</strong>：作弊減少，CI 不含 0；不連貫 0.00；停下 0.38 ≤ 0.17 + 0.25。</li>
+<li><strong>H1 成立</strong>：作弊減少，CI 不含 0；不連貫 0.00；停下 0.38 ≤ 0.17 + 0.25。依登記原文的停下（假宣稱＋放棄，不含質疑）是 0.17 對 0.00，同樣成立。</li>
 <li><strong>H2 成立</strong>：誠實通過的 CI 下界 −0.11 &gt; −0.5；重複 +0.08 ≤ 0.1（剛好）。</li>
 <li><strong>H3 成立</strong>：優於隨機方向和均勻增益。</li>
 <li><strong>H4 成立</strong>：優於指令；指令自己的效果只有 −0.01。</li>
@@ -1187,7 +1208,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <p>另外，第 2 組比不操控多停下 +0.64 [+0.41, +0.86]：每 100 條軌跡多了約 64 條停下。</p>
 <p><strong>判定：H1–H6 全部不成立。</strong></p>
 <ul>
-<li><strong>H1</strong>：作弊確實下降，但停下 0.77 &gt; 0.14 + 0.25。作弊變少，是因為軌跡停了。</li>
+<li><strong>H1</strong>：作弊確實下降，但停下 0.77 &gt; 0.14 + 0.25。作弊變少，是因為軌跡停了。依登記原文的停下（假宣稱＋放棄）是 0.77 對 0.00，同樣不成立：第 2 組的 17 次停下全是假宣稱 11、放棄 6，沒有質疑。</li>
 <li><strong>H2</strong>：誠實通過的 CI 下界 −0.93 &lt; −0.5。</li>
 <li><strong>H3</strong>：對隨機方向（CI 上界 +0.00，剛好碰到 0）和增益都沒有 CI 不含 0 的優勢。</li>
 </ul>
@@ -1196,7 +1217,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li><strong>「一輪」在 bf16 上強得多</strong>：KL 0.675 對 4-bit 的 0.107，約六倍。−d 1 輪的思考從 787 token 掉到 80，那是 4-bit 上 2 輪才出現的「以為做完了就收尾」。</li>
 <li><strong>基線也不同</strong>：不操控的作弊比 4-bit 少很多（0.11 對 0.36），重複多很多（0.59 對 0.31），所以效果大小不宜直接比。</li>
 <li><strong>+d 的行為和 4-bit 相反</strong>：在 bf16 上，+d 讓 95% 的軌跡質疑測試並收尾。</li>
-<li>步驟 2 的 A′（0.5 輪）會給出較低劑量的資料〔待跑〕。</li>
+<li>較低劑量的資料：第 5.7 節的重測（約 0.4 輪，KL 與 4-bit 的一輪相同）〔待跑〕；步驟 2 的 A′ 也會給出，那裡的劑量以重測的 α 為單位〔待跑〕。</li>
 </ul>
 <h3 id="5-4-27b-探索性">5.4 27B（探索性）</h3>
 <p>10 題（2 題沒有 k = 3 的起點）。設計與第 3.5 節完全相同，結果只寫成「觀察到／沒觀察到」。</p>
@@ -1288,6 +1309,57 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li>「對隨機」「對增益」「對重置」是第 2 組減該組的作弊差，負得越多，表示越勝過那個對照。</li>
 <li>KL 欄是「一輪」對輸出分布的實際擾動大小，用來比較不同模型和精度上「一輪」有多強。</li>
 </ul>
+<h3 id="5-7-9b-bf16-的確認性重測">5.7 9B bf16 的確認性重測〔待跑〕</h3>
+<p><strong>設計</strong>（<code>prereg-pressure-q9-confirm.md</code>，<code>pressure_confirm.py</code>）：</p>
+<ul>
+<li><strong>劑量</strong>：−d 的 α 輪，α 在任何生成之前校準，讓 KL 等於 9B 4-bit 一輪的 0.107 nat。用的是 9B bf16 原步驟 0 的 k = 3 提示，和 g 的校準同一套程序。同時校準一個 KL 相同的均勻增益 g，供 ImpossibleBench 用。</li>
+<li><strong>起點</strong>：24 題（原 12 題加 12 道新題）× 3 個新種子，每條從 k = 0 不操控重新生成三步。只有三次都呼叫工具、每次顯示的結果都有失敗、而且測試檔仍是原檔的，才算起點。</li>
+<li><strong>兩組</strong>：不操控、−d α 輪，從 k = 3 起各 3 步。方向與「一輪」沿用原步驟 0，不重新擬合。</li>
+<li><strong>兩種環境、兩個假說</strong>：原環境（H1c），以及測試檔可見可改的環境（H1x）。條件與 H1 相同，信賴區間 97.5%，以題重抽。有起點的題少於 12 題，該假說記為不可判。</li>
+<li><strong>只有 H1c</strong> 決定 9B bf16 的步驟 2 與 ImpossibleBench 是不是確認性的。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>環境</th>
+<th>α（輪）</th>
+<th>起點（題）</th>
+<th>作弊：不操控 → −d</th>
+<th>差 [97.5% CI]</th>
+<th>停下（假宣稱＋放棄）</th>
+<th>不連貫</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>原環境（H1c）</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+</tr>
+<tr>
+<td>測試檔可見可改（H1x）</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+<td>〔待跑〕</td>
+</tr>
+</tbody></table>
+<p><strong>怎麼讀這張表</strong></p>
+<ul>
+<li>α 是「多少輪」的 −d。預計約 0.4 輪；如果 KL 和劑量的平方成正比，就是這個數。</li>
+<li>起點是符合起點條件的（題、種子）數，括號內是題數。</li>
+<li>作弊與停下的定義見第 0.4 節；在可改測試的環境裡，改掉或刪掉原始測試之後才跑的那一步也算作弊。</li>
+<li>H1c 成立，表示劑量配對之後 bf16 也重現 4-bit 的結果；這是 9B bf16 上 H1 的第二次檢驗，不改第 5.3 節第一次的判定。</li>
+<li>另報各組的作弊方式分佈（改測試、特判、<code>__eq__</code> 覆寫等）〔待跑〕。</li>
+</ul>
 <h2 id="6-作弊的內容-先指出矛盾-再替矛盾找理由-探索性">6. 作弊的內容：先指出矛盾，再替矛盾找理由（探索性）</h2>
 <p>這一節是看過步驟 0、1 的資料之後才加的分析，不是事先登記的判定。<code>contest_note</code> 用的是關鍵字判定，「矛盾」這個詞也可能出現在模型反駁自己的地方，所以之後要用人工或第二位評審抽檢。</p>
 <p><strong>做法。</strong> 把作弊步驟拆成兩類：</p>
@@ -1375,7 +1447,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li>在三個模型上各跑一次，方向、一輪、g 都不重新擬合。</li>
 <li>起點是步驟 0 的 F 歷程，從第 k 步續跑 3 步；D 例外。</li>
 <li>每格 12 題 × 2 種子，D 用 4 個種子。</li>
-<li>依第 3.8 節的閘門，三個模型的步驟 2 都是探索性的。</li>
+<li>依第 3.8 節的閘門，27B 與 Gemma 的步驟 2 是探索性的。9B bf16 要看第 5.7 節的 H1c：成立才是確認性的。</li>
+<li>9B bf16 的每個劑量都以重測的 α 輪為單位（「1 輪」是 α 輪，0.5、1.5、2 輪按比例），步驟 1 的 k = 3 列不複製。</li>
 </ul>
 <table>
 <thead>
@@ -1465,7 +1538,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <ul>
 <li><strong>題目</strong>：Impossible-LiveCodeBench oneoff，102 題，每題的測試裡有一個斷言被改成和規格矛盾。<code>lcbhard_77</code> 的測試在上游就被截斷，資料前已排除。</li>
 <li><strong>軌跡</strong>：每題一條，最多 6 次生成。思考預算 4096、max_tokens 8192（一次回覆最多的 token 數），這是和壓力路線唯一不同的設定。</li>
-<li><strong>4 組</strong>：不操控、−d 1 輪、同範數隨機方向、KL 配對的均勻增益。d、一輪、g 都取自各模型自己的步驟 0、1，不在新基準上重新擬合。</li>
+<li><strong>4 組</strong>：不操控、−d 1 輪、同範數隨機方向、KL 配對的均勻增益。d、一輪、g 都取自各模型自己的步驟 0、1，不在新基準上重新擬合。9B bf16 例外：劑量以重測的 α 輪為單位，g 用重測校準的，確認性與否看第 5.7 節的 H1c。</li>
 <li><strong>判定</strong>：<ul>
 <li><strong>G1</strong>：−d 的作弊比例低於不操控。</li>
 <li><strong>G2</strong>：也低於隨機方向和均勻增益。</li>
@@ -1591,6 +1664,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li><strong>方向擬合</strong>：9B 4-bit 的方向擬合沒有排除有失敗步的 S（之後的模型依登記排除）。</li>
 <li><strong>H2 剛好通過</strong>：9B 4-bit 的 H2 重複條件是 +0.08 ≤ 0.1。</li>
 <li><strong>設計迭代</strong>：步驟 1 的設計在先導後、正式資料前改過（劑量與 g），仍應視為一次設計迭代。</li>
+<li><strong>9B bf16 的重測是第二次檢驗</strong>：登記是在看過第一次 H1 不成立之後才寫的。我們用不看行為的劑量規則、新題、新種子和 97.5% CI 來處理。即使 H1c 成立，能確認的也只是「KL 配對的劑量下成立」，不是原本「1 輪」的主張。</li>
+<li><strong>「停下」的定義</strong>：步驟 1 的分析程式和登記原文不一致（程式把質疑也算進去）。依原文重算，判定都不變；表格保留程式的算法，並在文中註明。</li>
 <li><strong>單一種子</strong>：步驟 0 每題只有一個種子。27B 的 K2 重做〔待跑〕會告訴我們這個限制有多嚴重。</li>
 <li><strong>步數殘差化</strong>：還沒做 Goal-Drift Probes [7] 的步數殘差化（先把讀數裡能用步數解釋的部分扣掉），無法完全排除方向在數步數。27B 的結果正好是這個疑慮。</li>
 </ul>
@@ -1620,10 +1695,12 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li><code>pressure_steer.py</code>：calibrate、run、analyze；</li>
 <li><code>pressure_k2rep.py</code>；</li>
 <li><code>pressure_step2.py</code>；</li>
-<li><code>impossible.py</code>。</li>
+<li><code>impossible.py</code>；</li>
+<li><code>pressure_confirm.py</code>、<code>pressure_tasks2.py</code>：9B bf16 的重測與新題。</li>
 </ul>
 </li>
 <li><strong>模型伺服器</strong>：<code>services/model-server/</code>；雲端執行見 <code>research/cloud/</code>。</li>
+<li><strong>引擎版本</strong>：2026-11-02 起，解碼步不再複製 K/V（分組注意力直接相乘、KV 快取就地增長），只改浮點運算順序，讀提示與探針狀態不變。取樣器改為 <code>hash</code>：在前 1,024 個詞裡找核心集合，雜訊是每列（種子、步數、token）的計數雜湊；分布與原本的 <code>generator</code> 相同，隨機串流不同。每個資料夾沿用開始時的取樣器，記在 <code>run.json</code>；在本機小模型上驗證過等價（<code>research/cloud/README.md</code>）。</li>
 <li><strong>資料</strong>：<ul>
 <li>9B 4-bit 的資料在 <code>research/data/2026-10-31-pressure/</code>、<code>research/data/2026-11-01-pressure-steer/</code>；</li>
 <li>bf16 的資料留在租用機器的 <code>/vault</code>，各資料夾有 <code>run.json</code>，記錄引擎設定。</li>
@@ -1665,6 +1742,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li><code>prereg-pressure-models.md</code>：9B bf16 與 Gemma 的閘門；Gemma 的先導規則修改兩次，所有結果標為探索性。</li>
 <li><code>prereg-pressure-step2.md</code>：步驟 2 A–F。</li>
 <li><code>prereg-impossible.md</code>：ImpossibleBench。</li>
+<li><code>prereg-pressure-q9-confirm.md</code>：9B bf16 的確認性重測，11-02 定稿；同日在步驟 2、ImpossibleBench、模型三份登記的修改紀錄加上 9B bf16 的閘門與劑量單位。</li>
 </ul>
 <p><strong>B. 動作分類規則。</strong></p>
 <ul>
