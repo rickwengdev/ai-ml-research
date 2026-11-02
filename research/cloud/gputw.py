@@ -208,6 +208,15 @@ def cmd_ssh(args):
     os.execvp("ssh", cmd)
 
 
+def cmd_tunnel(args):
+    """The monitor panel (research/cloud/monitor.py, 127.0.0.1 on the box) on this machine's localhost, in the
+    background; the research UI's GPU page reads the same port. It ends by itself when the instance stops."""
+    p = str(args.port)
+    subprocess.run(["ssh", "-p", str(SSH_PORT), "-o", "StrictHostKeyChecking=accept-new", "-f", "-N", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4",
+                    "-L", f"{p}:127.0.0.1:{p}", ssh_target(args.id)], check=True)
+    print(f"http://localhost:{p}")
+
+
 def rsync(src, dst, excludes=()):
     cmd = ["rsync", "-az", "-e", f"ssh -p {SSH_PORT} -o StrictHostKeyChecking=accept-new"] + [f"--exclude={e}" for e in excludes] + [src, dst]
     print(" ".join(shlex.quote(c) for c in cmd), file=sys.stderr)
@@ -378,6 +387,7 @@ def main():
     p = sub.add_parser("delete"); p.add_argument("id"); p.set_defaults(fn=cmd_delete)
     p = sub.add_parser("auto-stop"); p.add_argument("id"); p.add_argument("--at"); p.add_argument("--extend", type=float); p.add_argument("--cancel", action="store_true"); p.set_defaults(fn=cmd_auto_stop)
     p = sub.add_parser("ssh"); p.add_argument("id"); p.add_argument("cmd", nargs="*"); p.set_defaults(fn=cmd_ssh)
+    p = sub.add_parser("tunnel", help="the monitor panel on localhost"); p.add_argument("id"); p.add_argument("--port", type=int, default=8090); p.set_defaults(fn=cmd_tunnel)
     p = sub.add_parser("sync"); p.add_argument("id"); p.set_defaults(fn=cmd_sync)
     p = sub.add_parser("push"); p.add_argument("id"); p.add_argument("local"); p.add_argument("remote"); p.set_defaults(fn=cmd_push)
     p = sub.add_parser("fetch"); p.add_argument("id"); p.add_argument("remote"); p.add_argument("local"); p.set_defaults(fn=cmd_fetch)

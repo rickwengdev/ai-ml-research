@@ -37,7 +37,7 @@ $G stop <id>                                 # 停機就不計費；/workspace �
 - 監控面板：引擎每秒把累計 token 寫到 `$ENGINE_METRICS`；`monitor.py` 在機器上讀它和 `nvidia-smi`，只聽 127.0.0.1。用 SSH 通道接回本機，不開任何公開連接埠：
 
 ```bash
-ssh -f -N -L 8090:127.0.0.1:8090 -p 2222 pod-<id>@ssh.gputw.ai   # 然後開 http://localhost:8090
+$G tunnel <id>   # 也就是 ssh -f -N -L 8090:127.0.0.1:8090 -p 2222 pod-<id>@ssh.gputw.ai；然後開 http://localhost:8090。每開一台新機器要重接一次
 ```
 
 - 在機器上用 `pkill -f`／`pgrep -f` 找程序時，模式不能出現在自己的指令列裡（遠端 bash 的指令列包含整段指令，會把自己砍掉）；停程序用 PID，或把指令寫成腳本檔再執行。
@@ -96,7 +96,7 @@ $G run <id> --name bench -- bash /vault/work/research/cloud/jobs/bench.sh
 - **取樣**：原本每一步都對整個詞表（24.8 萬）排序做 top-p，還為每一列各產生一次詞表大小的隨機數。現在先取前 1,024 個詞，在裡面找核心集合；湊不滿 top_p 時退回整個詞表。雜訊來自每一列（種子、步數、token）的計數雜湊，一次算完所有列。分布與原本相同，但抽到的 token 不同。
   - 一個資料夾沿用它開始時的取樣器（`run.json` 的 `engine.sampler`），續跑不混用兩種隨機串流；之前的資料夾記為 `generator`。
 - **測試與 GPU 重疊**：`pressure.drive` 把每一步批次放到另一個執行緒，主執行緒同時替上一步跑完的軌跡跑測試，不再讓整個批次等。
-- **小顯卡**：`pressure-all.sh` 依顯示卡記憶體決定批次。32 GB（RTX 5090）上只跑得動 9B，批次 32、ImpossibleBench 16；放不下的模型跳過並記一行。
+- **小顯卡**：`pressure-all.sh` 依顯示卡記憶體決定批次。32 GB（RTX 5090）上只跑得動 9B，批次 16、ImpossibleBench 16（批次 32 跑三分鐘就記憶體不足）；放不下的模型跳過並記一行。
 - **本機驗證**（小模型 Qwen3.5、Gemma 4，CPU float32）：
   - 新注意力與快取：貪婪解碼的 token 完全相同，logits 差在 3e-6 以內。
   - 取樣器：與整個詞表的 top-p 分布一致（總變異距離與多項分布抽樣相當）；一列單獨抽或和別列一起抽，結果相同。

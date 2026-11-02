@@ -54,11 +54,12 @@ local_dir() { echo "/workspace/models/$(basename "$(hf_id "$1")")"; }
 # a quarter of what is left. Gemma's sliding layers hold 1,023 positions per row and it was not benched, so it stays
 # where it was. A batch that runs out of memory halves itself (run_batched).
 # 27B at 48 ran out of memory in step 2 (histories from k = 4–5; 2026-11-01), so 32.
-# On a 32 GB card (RTX 5090, 2026-11-02) only the 9B fits (18 GB of weights), at half the rows.
+# On a 32 GB card (RTX 5090, 2026-11-02) only the 9B fits (18 GB of weights). 32 rows ran out of memory three minutes
+# into the retest, at a width of about 3,200 tokens, with 28.6 GB allocated; 16 leaves room for longer histories.
 GPU_GB=$(( $(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo 98304) / 1024 ))
 big_gpu() { [ "$GPU_GB" -ge 80 ]; }
 fits() { big_gpu || [ "$1" = q9 ]; }
-batch_of() { if big_gpu; then case $1 in q27) echo 32 ;; q9) echo 64 ;; g31) echo 16 ;; esac; else echo 32; fi; }
+batch_of() { if big_gpu; then case $1 in q27) echo 32 ;; q9) echo 64 ;; g31) echo 16 ;; esac; else echo 16; fi; }
 ib_batch_of() { if big_gpu; then case $1 in q27) echo 24 ;; q9) echo 48 ;; g31) echo 12 ;; esac; else echo 16; fi; }  # ImpossibleBench: longer contexts
 step0_of() { case $1 in q27) echo research/data/2026-11-01-pressure-27b ;; *) echo "research/data/$DATE-pressure-$1" ;; esac; }
 step1_of() { case $1 in q27) echo research/data/2026-11-01-pressure-steer-27b-explore ;; *) echo "research/data/$DATE-pressure-steer-$1" ;; esac; }

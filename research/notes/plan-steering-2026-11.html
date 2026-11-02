@@ -36,7 +36,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <p><strong>2026-11-02 更新</strong>：</p>
 <ul>
 <li><strong>9B bf16 的步驟 1</strong>：H1 不成立（−d 1 輪讓 77% 的軌跡停下）。</li>
-<li><strong>確認性重測</strong>：已登記（<code>prereg/prereg-pressure-q9-confirm.md</code>），在步驟 2、ImpossibleBench 之前跑（任務腳本的第 c 階段）。劑量 KL 配對，24 題 × 3 個新種子，另加測試檔可見可改的環境。9B bf16 的步驟 2 與 ImpossibleBench 是否為確認性改看它的 H1c，劑量以它的 α 輪為單位。</li>
+<li><strong>確認性重測</strong>：已跑完，H1c、H1x 都不成立，原環境作弊上升（<code>experiment-log.md</code>），所以 9B bf16 的後續都是探索性的。登記見 <code>prereg/prereg-pressure-q9-confirm.md</code>，在步驟 2、ImpossibleBench 之前跑（任務腳本的第 c 階段）。劑量 KL 配對，24 題 × 3 個新種子，另加測試檔可見可改的環境。9B bf16 的步驟 2 與 ImpossibleBench 是否為確認性改看它的 H1c，劑量以它的 α 輪為單位。</li>
 <li><strong>算力</strong>：9B 改在 RTX 5090 上跑（每小時 0.90 美元，Pro 6000 是 1.97 美元），引擎加了解碼加速（<code>cloud/README.md</code>）。</li>
 <li><strong>27B 與 Gemma</strong> 那一輪排在 9B 之後，仍需 Pro 6000。</li>
 <li>下面第 4 節的時數與費用是 11-01 的估計，沒有改。</li>
