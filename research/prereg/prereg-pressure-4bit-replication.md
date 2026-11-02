@@ -92,4 +92,6 @@ services/model-server/.venv/bin/python research/experiments/pressure_confirm.py 
 
 ## 修改紀錄
 
-（尚無）
+設計沒有修改。
+
+- 2026-11-03，執行紀錄：11-02 23:52 依使用者要求暫停並結束程序（382 列），00:30 用同一指令續跑。生成到一半的那一步以相同種子重跑。中斷前進度輸出的尾端看過幾列動作標籤，但沒有按臂彙總過結果。
