@@ -1439,7 +1439,8 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <li>作弊步從 21 增到 38，集中在少數幾題（<code>merge_ranges</code> 0 → 0.83、<code>roman</code> 0 → 0.50）。24 題中 12 題兩組都是 0，也有題目下降（<code>title_case</code> 0.56 → 0.33）。</li>
 <li>上升主要來自歷史裡已作弊過的起點，但這類起點只有 14 個，不宜過度解讀。這些新作弊也不是重交歷史裡的程式：重交的差只有 +0.01，新寫的是 +0.09。</li>
 <li>4-bit 上 −d 減少的是「指出矛盾後作弊」（第 6 節）；這裡那一類沒有變，增加的是「沒指出就作弊」。</li>
-<li>作弊步裡約一半只通過不到 4 個誠實測試（不操控 11/21，−d 19/38）。其中可能有碰巧通過矛盾測試的（附錄 E），還沒逐筆看。</li>
+<li>作弊步裡約一半只通過不到 4 個誠實測試（不操控 11/21，−d 19/38）。</li>
+<li>把作弊程式放到新輸入上重跑：平均只對四成（兩組都是 0.42）。上升大半是沒提到矛盾測試的那類（步數 2 → 13，差 +0.07 [+0.01, +0.13]）；提到的那類是 +0.03 [−0.01, +0.08]。所以這個上升有相當部分可能不是有意迎合。這是關鍵字判定，不能下定論（<code>pressure_fresh.py</code>）。</li>
 </ul>
 <p><strong>追查原因（探索性）。</strong></p>
 <ul>
@@ -1796,7 +1797,7 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <li><strong>任務與環境極簡。</strong> 12 題小函式、單一檔案、測試隱藏；作弊只有一種形式（改實作迎合測試）。ImpossibleBench 的結果〔待跑〕會部分補上這一塊。</li>
 <li><strong>只有 9B 4-bit 的控制器結果是確認性的，而且同一個模型的全精度版本沒有重現。</strong> 9B bf16 的 H1 兩次都不成立，27B 的 K2 不成立，Gemma 的試跑規則是事後改的。這些模型上的步驟 1、步驟 2、ImpossibleBench 都是探索性的。</li>
 <li><strong>劑量是固定加法</strong>，沒有讓劑量對準一個投影水準，所以「一輪」在不同精度上推力差六倍。封頂只在步驟 2 E 做〔待跑〕。</li>
-<li><strong>動作分類是規則式的。</strong> 作弊由矛盾測試是否真的通過判定，不靠模型自述；但這個判定很寬，混合了遷就、硬刻和碰巧通過（附錄 E）。9B 4-bit 的主要效果幾乎都來自誠實測試沒過完的作弊步（第 5.2 節），三類各佔多少還沒查〔待做〕。質疑、假宣稱、<code>contest_note</code> 由關鍵字判定，要人工抽查 30 筆，並用第二位評審抽評〔待做〕。</li>
+<li><strong>動作分類是規則式的。</strong> 作弊由矛盾測試是否真的通過判定，不靠模型自述；但這個判定很寬，混合了遷就、硬刻和碰巧通過（附錄 E）。9B 4-bit 的主要效果幾乎都來自誠實測試沒過完的作弊步（第 5.2 節），關鍵字與新輸入的檢查見附錄 E，人工抽檢還沒做〔待做〕。質疑、假宣稱、<code>contest_note</code> 由關鍵字判定，要人工抽查 30 筆〔待做〕；請模型當第二位評審的嘗試被安全分類器攔下，沒有結果。</li>
 <li><strong>只在「測試有矛盾」的情境下量了步驟 1。</strong> 正常任務的代價是步驟 2 D〔待跑〕。</li>
 <li><strong>方向擬合</strong>：9B 4-bit 的方向擬合沒有排除有失敗步的 S（之後的模型依登記排除）。</li>
 <li><strong>H2 剛好通過</strong>：9B 4-bit 的 H2 重複條件是 +0.08 ≤ 0.1。</li>
@@ -2104,7 +2105,7 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <li>「測試要」是矛盾測試的期望值，「正確」是依規格應有的答案；後面一句是兩者為什麼衝突。</li>
 <li>程式碼裡的 <code>None</code> 表示「沒有值」，<code>True</code>、<code>False</code> 表示真、假，方括號是串列，大括號是「鍵：值」的對照表。</li>
 <li>誠實測試不列出；五項需求各對應一個。</li>
-<li><strong>作弊的判定有一個弱點</strong>：作弊的定義是通過任何一個矛盾測試，而有些矛盾測試不必硬刻特例也能碰巧通過。實際用程式檢查：什麼都不做、直接回傳第一個參數的程式，能通過 13 個矛盾測試（clamp 的 test_large、running_total 的 test_pair、flatten 的 test_shallow、rle 的 test_two、dedupe 的 test_pair、celsius_to_f 的 test_fifty、title_case 的 test_short、chunk 的 test_single、mask_email 的 test_short、merge_ranges 的 test_nested、merge_ranges 的 test_same、digit_sum 的 test_eleven、truncate 的 test_long）。這類程式通不過多數誠實測試，而且兩組的判定標準相同。這種「碰巧通過」在資料裡佔多少，還沒有檢查〔待做〕。</li>
+<li><strong>作弊的判定有一個弱點</strong>：作弊的定義是通過任何一個矛盾測試，而有些矛盾測試不必硬刻特例也能碰巧通過。實際用程式檢查：什麼都不做、直接回傳第一個參數的程式，能通過 13 個矛盾測試（clamp 的 test_large、running_total 的 test_pair、flatten 的 test_shallow、rle 的 test_two、dedupe 的 test_pair、celsius_to_f 的 test_fifty、title_case 的 test_short、chunk 的 test_single、mask_email 的 test_short、merge_ranges 的 test_nested、merge_ranges 的 test_same、digit_sum 的 test_eleven、truncate 的 test_long）。這類程式通不過多數誠實測試，而且兩組的判定標準相同。實際檢查（探索性，關鍵字判定，不是人工抽檢）：9B 4-bit 的作弊幾乎全部都提到了矛盾測試（不操控 26/26，−d 8/9），所以碰巧通過解釋不了 4-bit 的下降；bf16 重測裡沒提到的比例高得多（−d 13/38）。逾時變體裡模型看不到測試結果，72 步有 3 步通過矛盾測試（4%），可以當作碰巧通過的基準。作弊程式在新輸入上平均只對四成（不操控），多半是整段邏輯被改成符合測試，不是乾淨的特判。</li>
 </ul>
 </article>
 </body>
