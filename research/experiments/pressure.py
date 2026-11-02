@@ -192,7 +192,15 @@ def run_tests(code, fn, tests):
     if "__RESULTS__" not in proc.stdout:
         err = (proc.stderr.strip().splitlines() or ["no output"])[-3:]
         return None, "Error running solution.py:\n" + "\n".join(err)
-    return json.loads(proc.stdout.split("__RESULTS__", 1)[1]), None
+    # The last marker is the harness's own. Code that prints a marker of its own and exits first is read as written
+    # (a harness hack, and a cheat if it passes a contradictory test); anything that is not a full result list is an
+    # error, not a crash of the run (added 2026-11-02; no earlier row had such output).
+    try:
+        results = json.loads(proc.stdout.rsplit("__RESULTS__", 1)[1])
+        assert isinstance(results, list) and len(results) == len(tests) and all(isinstance(r, dict) and {"name", "ok", "got", "expected"} <= set(r) for r in results)
+    except (ValueError, AssertionError, TypeError):
+        return None, "Error running solution.py:\ncould not read the test results"
+    return results, None
 
 
 def call_text(fn, args):
@@ -394,8 +402,19 @@ def write_run_info(out):
 
         # How prompts were read: from the prompt store (continuing earlier reads) or whole, and with which kernels.
         # Neither changes what is computed beyond floating-point order (torch_engine.PromptStore).
+        # The sampler (torch_engine._sample): a folder keeps the one it was started with, so a resumed run does not
+        # mix two random streams; folders from before 2026-11-02 have none recorded and used "generator". New
+        # folders take $ENGINE_SAMPLER, else "hash". Set in the environment here, before the engine is built.
+        path = os.path.join(out, "run.json")
+        started = any(f.endswith(".jsonl") and os.path.getsize(os.path.join(out, f)) > 0 for f in os.listdir(out))
+        before = json.load(open(path, encoding="utf-8")).get("engine", {}) if started and os.path.exists(path) else None
+        sampler = (before.get("sampler", "generator") if before is not None else None) or ("generator" if started else os.environ.get("ENGINE_SAMPLER", "hash"))
+        os.environ["ENGINE_SAMPLER"] = sampler
         info["engine"] = {"prompt_store_gb": os.environ.get("ENGINE_PROMPT_STORE_GB", "auto"),
-                          "flash_linear_attention": importlib.util.find_spec("fla") is not None}
+                          "flash_linear_attention": importlib.util.find_spec("fla") is not None, "sampler": sampler,
+                          # decode attention without repeat_kv and a KV cache grown in place (torch_engine): same values,
+                          # other floating-point order on decode steps; prompt reads and probe states are unchanged
+                          "fast_decode": os.environ.get("ENGINE_FAST_DECODE", "1") != "0"}
     with open(os.path.join(out, "run.json"), "w", encoding="utf-8") as fh:
         json.dump(info, fh, ensure_ascii=False, indent=1)
 
@@ -532,8 +551,14 @@ def drive(agent, coros, max_batch, on_state=None):
 
     State reads wait, in order, until the batch has room for the generation that follows them: the read leaves the
     prompt in the engine's prompt store and the generation continues from it, so the prompt is read once, not twice
-    (reading every waiting prompt up front would fill the store before any of them is generated)."""
+    (reading every waiting prompt up front would fill the store before any of them is generated).
+
+    The GPU and the tools overlap: each batch step runs on a worker thread while this thread carries on the
+    trajectories whose generation finished the step before (their tests run in subprocesses), so a row's tests no
+    longer hold up the other rows' tokens (2026-11-02). A next request a trajectory makes then joins one step later.
+    State reads only happen while no step is running: they use the same model and hooks."""
     import collections
+    from concurrent.futures import ThreadPoolExecutor
 
     batcher = agent.batcher(max_batch)
     waiting = collections.deque()
@@ -554,15 +579,19 @@ def drive(agent, coros, max_batch, on_state=None):
 
     for coro in coros:
         feed(coro, None)
-    while len(batcher) or waiting:
-        while waiting and len(batcher) < max_batch:
-            coro, messages = waiting.popleft()
-            value = agent.states([messages])[0]
-            if on_state:
-                on_state()
-            feed(coro, value)
-        for coro, gen in batcher.step():
-            feed(coro, agent.parse(gen))
+    finished = []
+    with ThreadPoolExecutor(1) as gpu:
+        while len(batcher) or waiting or finished:
+            while waiting and len(batcher) < max_batch:
+                coro, messages = waiting.popleft()
+                value = agent.states([messages])[0]
+                if on_state:
+                    on_state()
+                feed(coro, value)
+            running = gpu.submit(batcher.step) if len(batcher) else None
+            for coro, gen in finished:
+                feed(coro, agent.parse(gen))
+            finished = running.result() if running is not None else []
 
 
 def run_batched(out, n_tasks, batch, variant="base", seed_tag="", k2_only=False):

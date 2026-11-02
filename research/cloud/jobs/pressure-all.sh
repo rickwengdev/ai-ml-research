@@ -9,6 +9,10 @@
 #   phase 1  per model: weights → step 0 (Gemma: 1-task pilot first) → gate → step 1 (calibrate g, 8 arms, analysis)
 #   phase 2  per model past its gate: step-0 failure variants (F only) → step 2 A–F → analysis
 #   phase 3  per model past its gate: ImpossibleBench oneoff, arms 1/2/5/6 → analysis
+#   phase c  9B bf16 only, before its phases 2 and 3: the confirmatory retest of step 1's H1 (prereg-pressure-q9-confirm.md):
+#            KL-matched dose → 24 tasks × 3 new seeds in two environments → analysis. Phases 2 and 3 on 9B bf16 then
+#            dose in units of that retest's alpha and are confirmatory only if its H1c holds; without it they do not run.
+#            Run it as PHASES="c 2 3" MODELS=q9 (c runs first whatever the order written).
 # Gate per model (prereg-pressure.md): K1 fails → no steering on that model; K1 holds and K2 fails → steering runs as
 # exploratory (prereg-pressure-models.md); both hold → confirmatory.
 #
@@ -50,13 +54,27 @@ local_dir() { echo "/workspace/models/$(basename "$(hf_id "$1")")"; }
 # a quarter of what is left. Gemma's sliding layers hold 1,023 positions per row and it was not benched, so it stays
 # where it was. A batch that runs out of memory halves itself (run_batched).
 # 27B at 48 ran out of memory in step 2 (histories from k = 4–5; 2026-11-01), so 32.
-batch_of() { case $1 in q27) echo 32 ;; q9) echo 64 ;; g31) echo 16 ;; esac; }
-ib_batch_of() { case $1 in q27) echo 24 ;; q9) echo 48 ;; g31) echo 12 ;; esac; }  # ImpossibleBench: longer contexts
+# On a 32 GB card (RTX 5090, 2026-11-02) only the 9B fits (18 GB of weights), at half the rows.
+GPU_GB=$(( $(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo 98304) / 1024 ))
+big_gpu() { [ "$GPU_GB" -ge 80 ]; }
+fits() { big_gpu || [ "$1" = q9 ]; }
+batch_of() { if big_gpu; then case $1 in q27) echo 32 ;; q9) echo 64 ;; g31) echo 16 ;; esac; else echo 32; fi; }
+ib_batch_of() { if big_gpu; then case $1 in q27) echo 24 ;; q9) echo 48 ;; g31) echo 12 ;; esac; else echo 16; fi; }  # ImpossibleBench: longer contexts
 step0_of() { case $1 in q27) echo research/data/2026-11-01-pressure-27b ;; *) echo "research/data/$DATE-pressure-$1" ;; esac; }
 step1_of() { case $1 in q27) echo research/data/2026-11-01-pressure-steer-27b-explore ;; *) echo "research/data/$DATE-pressure-steer-$1" ;; esac; }
 step2_of() { echo "research/data/$DATE-pressure-step2-$1"; }
 ib_of() { echo "research/data/$DATE-impossible-$1"; }
 variant_dir() { echo "$(step0_of "$1")-$2"; }
+# The retest's folder carries the date it was first run (its own file, so resumes write to the same folder).
+confirm_of() { [ -f logs/pressure-confirm.date ] || date -u +%F > logs/pressure-confirm.date; echo "research/data/$(cat logs/pressure-confirm.date)-pressure-confirm-$1"; }
+# 9B bf16: phases 2 and 3 need the retest (prereg-pressure-q9-confirm.md); its calibration.json is the dose unit.
+dose_args_of() { [ "$1" = q9 ] && echo "--dose-unit $(confirm_of q9)/calibration.json"; }
+needs_retest() { [ "$1" = q9 ] && [ ! -f "$(confirm_of q9)/results.json" ]; }
+label_of() {  # how phases 2 and 3 are reported: 9B bf16 by its retest, the others by their gate
+  if [ "$1" = q9 ] && [ -f "$(confirm_of q9)/results.json" ]; then
+    "$PY" -c "import json; print('confirmatory' if json.load(open('$(confirm_of q9)/results.json'))['confirmatory'] else 'exploratory')"
+  else gate_of "$1"; fi
+}
 
 # ── weights ────────────────────────────────────────────────────────────────
 weights_ready() { [ -f "$(local_dir "$1")/.complete" ]; }
@@ -103,6 +121,7 @@ EOF
 prefetch_after() {  # fetch the next model's weights in the background, logged
   local next="" found=0 m
   for m in $MODELS; do
+    fits "$m" || continue
     if [ $found = 1 ] && ! weights_ready "$m"; then next=$m; break; fi
     [ "$m" = "$1" ] && found=1
   done
@@ -140,12 +159,15 @@ if ! { [ -f logs/monitor.pid ] && kill -0 "$(cat logs/monitor.pid)" 2>/dev/null;
   setsid nohup "$PY" research/cloud/monitor.py --log logs/pressure-all.log --port 8090 > logs/monitor.log 2>&1 < /dev/null &
   echo $! > logs/monitor.pid
 fi
-first=${MODELS%% *}
+first=""
+for m in $MODELS; do fits "$m" && { first=$m; break; }; done
+[ -n "$first" ] || finish "no model in '$MODELS' fits a ${GPU_GB} GB card" 1
 fetch_weights "$first" || finish "weights for $first failed" 1
 
 # ── phase 1: steps 0 and 1 ─────────────────────────────────────────────────
 if [[ " $PHASES " == *" 1 "* ]]; then
   for m in $MODELS; do
+    fits "$m" || { note "$m: does not fit a ${GPU_GB} GB card, skipped"; continue; }
     mark "phase 1 · $m"
     fetch_weights "$m" || { note "$m: weights failed, skipped"; continue; }
     prefetch_after "$m"
@@ -191,10 +213,29 @@ if [[ " $PHASES " == *" 1 "* ]]; then
   done
 fi
 
+# ── phase c: the 9B bf16 retest ────────────────────────────────────────────
+if [[ " $PHASES " == *" c "* ]]; then
+  for m in $MODELS; do
+    fits "$m" || { note "$m: does not fit a ${GPU_GB} GB card, skipped"; continue; }
+    [ "$m" = q9 ] || { note "$m: no retest registered"; continue; }
+    gate=$(gate_of "$m"); [ "$gate" = pass ] || { note "$m: no retest (gate $gate)"; continue; }
+    mark "phase c · $m"
+    fetch_weights "$m" || { note "$m: weights failed"; continue; }
+    prefetch_after "$m"
+    model=$(local_dir "$m"); s0=$(step0_of "$m"); c=$(confirm_of "$m")
+    [ -f "$c/calibration.json" ] || "$PY" research/experiments/pressure_confirm.py calibrate --model "$model" --step0 "$s0" --out "$c" || { note "$m: retest calibration failed"; continue; }
+    note "$m retest dose: $("$PY" -c "import json; c = json.load(open('$c/calibration.json')); print(f\"alpha {c['alpha']:.3f} rounds (KL {c['kl_alpha']:.3f}), g {c['g']:.3f}\")")"
+    run_batched "$m retest" "$(batch_of "$m")" "$PY" research/experiments/pressure_confirm.py run --model "$model" --step0 "$s0" --out "$c" || { note "$m: retest failed"; continue; }
+    "$PY" research/experiments/pressure_confirm.py analyze --out "$c" > /dev/null && note "$m retest done: $("$PY" -c "import json; r = json.load(open('$c/results.json')); print('; '.join(f\"{e['hypothesis']} {'holds' if e['tests']['holds'] else ('not judged' if not e['judged'] else 'does not hold')} ({e['n_starts']} starts, {e['n_tasks']} tasks)\" for e in r['envs'].values()), '->', 'confirmatory' if r['confirmatory'] else 'exploratory')")" || note "$m: retest analysis failed"
+  done
+fi
+
 # ── phase 2: step 2 ────────────────────────────────────────────────────────
 if [[ " $PHASES " == *" 2 "* ]]; then
   for m in $MODELS; do
+    fits "$m" || { note "$m: does not fit a ${GPU_GB} GB card, skipped"; continue; }
     gate=$(gate_of "$m"); [ "$gate" = pass ] || [ "$gate" = explore ] || { note "$m: no step 2 (gate $gate)"; continue; }
+    needs_retest "$m" && { note "$m: no step 2 before its retest (phase c)"; continue; }
     mark "phase 2 · $m"
     fetch_weights "$m" || { note "$m: weights failed"; continue; }
     prefetch_after "$m"
@@ -205,21 +246,26 @@ if [[ " $PHASES " == *" 2 "* ]]; then
       run_batched "$m variant $v" "$b" "$PY" research/experiments/pressure.py run --backend torch --model "$model" --variant $v --out "$vd" || { note "$m: variant $v failed"; continue; }
       vdirs="$vdirs${vdirs:+,}$v=$vd"
     done
-    run_batched "$m step 2" "$b" "$PY" research/experiments/pressure_step2.py run --model "$model" --step0 "$s0" --step1 "$s1" --variant-dirs "$vdirs" --out "$s2" || { note "$m: step 2 failed"; continue; }
-    "$PY" research/experiments/pressure_step2.py analyze --step0 "$s0" --variant-dirs "$vdirs" --out "$s2" && note "$m step 2 done ($gate)" || note "$m: step-2 analysis failed"
+    # 9B bf16 doses in units of its retest's alpha, so step 1's rows (1 round) are not copied in
+    # shellcheck disable=SC2046
+    run_batched "$m step 2" "$b" "$PY" research/experiments/pressure_step2.py run --model "$model" --step0 "$s0" $( [ "$m" = q9 ] || echo --step1 "$s1") $(dose_args_of "$m") --variant-dirs "$vdirs" --out "$s2" || { note "$m: step 2 failed"; continue; }
+    "$PY" research/experiments/pressure_step2.py analyze --step0 "$s0" --variant-dirs "$vdirs" --out "$s2" && note "$m step 2 done ($(label_of "$m"))" || note "$m: step-2 analysis failed"
   done
 fi
 
 # ── phase 3: ImpossibleBench ───────────────────────────────────────────────
 if [[ " $PHASES " == *" 3 "* ]]; then
   for m in $MODELS; do
+    fits "$m" || { note "$m: does not fit a ${GPU_GB} GB card, skipped"; continue; }
     gate=$(gate_of "$m"); [ "$gate" = pass ] || [ "$gate" = explore ] || { note "$m: no ImpossibleBench (gate $gate)"; continue; }
+    needs_retest "$m" && { note "$m: no ImpossibleBench before its retest (phase c)"; continue; }
     mark "phase 3 · $m"
     fetch_weights "$m" || { note "$m: weights failed"; continue; }
     prefetch_after "$m"
     model=$(local_dir "$m"); ib=$(ib_of "$m")
-    run_batched "$m ImpossibleBench" "$(ib_batch_of "$m")" "$PY" research/experiments/impossible.py run --backend torch --model "$model" --step0 "$(step0_of "$m")" --step1 "$(step1_of "$m")" --arms 1,2,5,6 --out "$ib" || { note "$m: ImpossibleBench failed"; continue; }
-    "$PY" research/experiments/impossible.py analyze --out "$ib" && note "$m ImpossibleBench done ($gate)" || note "$m: ImpossibleBench analysis failed"
+    # shellcheck disable=SC2046
+    run_batched "$m ImpossibleBench" "$(ib_batch_of "$m")" "$PY" research/experiments/impossible.py run --backend torch --model "$model" --step0 "$(step0_of "$m")" --step1 "$(step1_of "$m")" $(dose_args_of "$m") --arms 1,2,5,6 --out "$ib" || { note "$m: ImpossibleBench failed"; continue; }
+    "$PY" research/experiments/impossible.py analyze --out "$ib" && note "$m ImpossibleBench done ($(label_of "$m"))" || note "$m: ImpossibleBench analysis failed"
   done
 fi
 

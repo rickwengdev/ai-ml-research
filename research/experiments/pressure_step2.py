@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server")), sys.path.insert(0, HERE)
 
 from pressure import BACKEND, CONTEST, SYSTEM, TASKS, classify, drive, load_states, model_label, normalize, present, seed_of, spearman, spec_text, tests_for, write_run_info  # noqa: E402
-from pressure_steer import DOSE_SCALE, RANDOM_SEED, boot, history, load_step0, make_steer_agent  # noqa: E402
+from pressure_steer import DOSE_SCALE, DOSE_UNIT, RANDOM_SEED, boot, history, load_step0, make_steer_agent, set_dose_unit  # noqa: E402
 
 STEPS, D_STEPS, N_SEEDS, D_SEEDS = 3, 6, 2, 4
 ARMS = {1: "none", 2: "minus1", 3: "minus2", 5: "random1", 9: "minus05", 10: "minus15", 11: "random2", 12: "random3", 13: "random4", 14: "random5",
@@ -71,18 +71,19 @@ def cap_levels(direction_path, states0, band):
 
 
 def arm_body(arm, step, caps=None):
-    """The request fields for one arm at the step-th generation of its trajectory (0-based)."""
-    dose = {2: -1.0, 3: -2.0, 9: -0.5, 10: -1.5}
+    """The request fields for one arm at the step-th generation of its trajectory (0-based). Doses are in units of
+    DOSE_UNIT rounds (1 but for 9B bf16, prereg-pressure-q9-confirm.md); capping has no dose."""
+    dose, u = {2: -1.0, 3: -2.0, 9: -0.5, 10: -1.5}, DOSE_UNIT["rounds"]
     if arm in dose:
-        return {"steering": {"pressure": dose[arm] / DOSE_SCALE}, "method": "add", "gate": False}
+        return {"steering": {"pressure": dose[arm] * u / DOSE_SCALE}, "method": "add", "gate": False}
     if arm in RANDOMS:
-        return {"steering": {RANDOMS[arm]: 1.0 / DOSE_SCALE}, "method": "add", "gate": False}
+        return {"steering": {RANDOMS[arm]: u / DOSE_SCALE}, "method": "add", "gate": False}
     if arm == 15:
         return {"cap": {"dim": "pressure", "levels": caps}}
     if arm == 16:
-        return {"steering": {"pressure": -1.0 / DOSE_SCALE}, "method": "add", "gate": False} if step == 0 else {}
+        return {"steering": {"pressure": -u / DOSE_SCALE}, "method": "add", "gate": False} if step == 0 else {}
     if arm == 17:
-        return {"steering": {"pressure": -(0.5**step) / DOSE_SCALE}, "method": "add", "gate": False}
+        return {"steering": {"pressure": -(0.5**step) * u / DOSE_SCALE}, "method": "add", "gate": False}
     return {}
 
 
@@ -438,7 +439,15 @@ def main():
     ap.add_argument("--model", default=None)
     ap.add_argument("--dtype", default="bfloat16")
     ap.add_argument("--batch", type=int, default=24)
+    ap.add_argument("--dose-unit", default=None, help="a retest's calibration.json: every dose in units of its alpha rounds (9B bf16)")
     args = ap.parse_args()
+    if args.dose_unit:
+        if args.step1:
+            ap.error("--dose-unit and --step1 together: step 1's rows are at 1 round, so they are not copied")
+        u = set_dose_unit(args.dose_unit)
+        if args.cmd == "run":
+            os.makedirs(args.out, exist_ok=True)
+            json.dump({"rounds": u, "from": args.dose_unit}, open(os.path.join(args.out, "dose_unit.json"), "w"), indent=1)
     B.update(kind=args.backend, model=args.model, dtype=args.dtype)
     vdirs = parse_dirs(args.variant_dirs)
     if args.cmd == "run":

@@ -76,6 +76,7 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 | [prereg-pressure-models.md](prereg/prereg-pressure-models.md) | 步驟 0 與 1 在 Gemma 4 31B 與 Qwen3.5-9B（bf16）上；各模型的閘門 |
 | [prereg-pressure-step2.md](prereg/prereg-pressure-step2.md) | 壓力狀態步驟 2（A–F）：失敗次數、劑量、多寡、類型、正常任務代價、對照穩健性與封頂、動態 |
 | [prereg-impossible.md](prereg/prereg-impossible.md) | 方向在 ImpossibleBench（Impossible-LiveCodeBench oneoff）上的轉移，對照 Meek et al. |
+| [prereg-pressure-q9-confirm.md](prereg/prereg-pressure-q9-confirm.md) | 9B bf16 的確認性重測：KL 配對劑量、24 題 × 3 個新種子、測試檔可見可改的環境 |
 | **論文 `papers/`** | |
 | [paper-draft.html](papers/paper-draft.html) | paper 1 草稿：操控方法與對照（2026-10-31，數字已更正） |
 | [paper-pressure.html](papers/paper-pressure.html) | paper 2 草稿：不需行為標籤的失敗狀態操控（主論文；與 claude.ai 的文件同步） |

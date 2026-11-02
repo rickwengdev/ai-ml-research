@@ -566,6 +566,7 @@ def main():
     ap.add_argument("--backend", choices=["mlx", "torch"], default="mlx")
     ap.add_argument("--model", default=None, help="a Hugging Face model id (torch), or an MLX model in place of pressure.MODEL")
     ap.add_argument("--dtype", default="bfloat16")
+    ap.add_argument("--dose-unit", default=None, help="a retest's calibration.json: doses in units of its alpha rounds (9B bf16)")
     ap.add_argument("--batch", type=int, default=1, help="torch backend: continuous batching, up to this many generations at once")
     # LiveCodeBench hard problems need more room than the 12 small tasks (in the smoke run every first reply hit the
     # 2,048-token thinking budget). The torch agent reads both from pressure's module globals at call time.
@@ -583,6 +584,12 @@ def main():
         ap.error(f"arms must be among {STEER_ARMS}")
     if any(a != 1 for a in arms) and not args.step0:
         ap.error("steering arms need --step0 (direction.npz)")
+    if args.dose_unit:
+        # The retest's calibration.json also holds the gain g matched to that dose's KL, so arm 6 takes g from there.
+        u = pressure_steer.set_dose_unit(args.dose_unit)
+        args.step1 = os.path.dirname(os.path.abspath(args.dose_unit))
+        os.makedirs(args.out, exist_ok=True)
+        json.dump({"rounds": u, "from": args.dose_unit}, open(os.path.join(args.out, "dose_unit.json"), "w"), indent=1)
     if 6 in arms and not args.step1:
         ap.error("arm 6 needs --step1 (calibration.json)")
     if args.batch > 1 and args.backend != "torch":

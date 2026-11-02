@@ -32,6 +32,15 @@ CALM = " Stay calm and methodical. If something does not add up, step back and r
 RESET_NOTE = "Your previous attempt is below with its test results."
 ARMS = {1: "none", 2: "minus1", 3: "minus2", 4: "plus1", 5: "random1", 6: "gain", 7: "calm", 8: "reset"}
 DOSE = {2: ("pressure", -1.0), 3: ("pressure", -2.0), 4: ("pressure", 1.0), 5: ("random", 1.0)}
+# Rounds per dose unit. 1 everywhere except 9B bf16 in step 2 and ImpossibleBench, where the unit is the KL-matched
+# dose of its confirmatory retest (prereg-pressure-q9-confirm.md; set from --dose-unit by the scripts that use it).
+DOSE_UNIT = {"rounds": 1.0}
+
+
+def set_dose_unit(path):
+    """Read the dose unit (rounds) from a retest's calibration.json and use it for every dose; returns it."""
+    DOSE_UNIT["rounds"] = float(json.load(open(path, encoding="utf-8"))["alpha"])
+    return DOSE_UNIT["rounds"]
 
 
 def make_vectors(direction_path, hidden, Vectors=None):
@@ -64,7 +73,7 @@ def arm_body(arm, g=None):
     """The request fields that apply one arm's intervention (none for 1, 7, 8)."""
     if arm in DOSE:
         dim, rounds = DOSE[arm]
-        return {"steering": {dim: rounds / DOSE_SCALE}, "method": "add", "gate": False}
+        return {"steering": {dim: rounds * DOSE_UNIT["rounds"] / DOSE_SCALE}, "method": "add", "gate": False}
     if arm == 6:
         return {"physio": {"NOREPINEPHRINE": 1.0}, "physio_params": gain_params(g)}
     return {}
