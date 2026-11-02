@@ -1,0 +1,16 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv*/
+.env
+
+# The engine, training helpers and system prompt are not part of this repository; link them here (see README.md)
+/services
+/training
+/docs
+
+# 研究資料裡體積大、只留在本機的檔案（狀態快照；重跑 pressure.py 會重建）
+research/data/*/states.npz
+research/data/*/states/
+# Run logs pulled back from rented GPUs (research/cloud/gputw.py backup)
+research/cloud/logs/

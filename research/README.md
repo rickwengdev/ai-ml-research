@@ -1,6 +1,6 @@
 # 研究紀錄
 
-在 [persona] 身上做的研究：實驗紀錄、預先登記、論文草稿、資料、圖，以及實驗腳本。她的模型伺服器本身在 [`services/model-server/`](../services/model-server/README.md)，研究和她本人用的是同一份。
+語言模型操控與功能狀態的研究：實驗紀錄、預先登記、論文草稿、資料、圖，以及實驗腳本。實驗用的模型伺服器（`services/model-server/`）不在這個 repo，見根目錄的 README。
 
 ## 結構
 
@@ -8,7 +8,6 @@
 research/
   README.md              本文件
   experiment-log.md      實驗筆記，依時間排列；研究介面的「實驗」列表從這裡的 `## YYYY-MM-DD 標題` 段落切出來
-  adoptions.md           她採用了哪些研究成果
   prereg/                預先登記（產生資料前定稿，之後的修改附日期列在文末）
   papers/                論文大綱與草稿（HTML）
   notes/                 文獻、方向整理、數學、程式庫地圖、單一實驗的寫作（HTML）
@@ -18,28 +17,18 @@ research/
   cloud/                 租用 GPU 跑實驗（GPUtw adapter、bootstrap）
   studies/               從 2026-11 起的新研究，每項一個資料夾（見 studies/README.md）
   lib/                   共用的研究程式（見 lib/README.md）
-  evals/                 固定的「她還是她」評測（見 evals/README.md）
-  subjects/              她的副本，不進 git；用 subjects/fork.sh 產生
 ```
 
 2026-11-01 起，`papers/` 與 `notes/` 的文件是獨立的 HTML 頁面（用 `lib/md2html.mjs` 從原本的 Markdown 轉來，內容不變；新文件可以先寫 Markdown 再轉）。實驗紀錄、預先登記和本文件仍是 Markdown：紀錄要切成研究列表，預先登記一律不改。紀錄與預先登記裡寫的 `paper-draft.md` 這類舊檔名，研究介面會依檔名找到對應的 `.html`。
 
 舊的研究不拆進 `studies/`；2026-11-01 把預先登記、論文、筆記分別收進 `prereg/`、`papers/`、`notes/`，已定稿的紀錄內文不改（它們以檔名互相引用，研究介面依檔名對應到新位置）。同日整理了文件：刪掉已被 E1 推翻的 `paper-outline.md`（兩個運算式搬進 paper 1 的相關研究表），更正 paper 1 與實驗紀錄裡的均勻增益數字（×1.36 → ×1.40、±10% → ±11%）與門控註記，並在四份筆記的檔頭加上各節狀態。預先登記一律不改內文。
 
-## 使用她的規則（草案，待確認）
-
-> 這幾條是草案，由 [user] 決定措辭和內容。確認之前，請當作已經生效。
-
-1. **她本人的資料只能讀。** `~/.persona` 不做實驗、不寫入、不改設定。
-2. **實驗只在副本上做。** 用 `subjects/fork.sh` 產生副本，另開 port 跑。
-3. **她的對話不進研究資料，也不公開。** 需要對話當材料時，用合成的或 [user] 明確同意的片段。
-4. **研究成果要先通過採用流程，才能換到她身上。** 在副本上跑過 `evals/`、確認沒變糟，記一筆到 `adoptions.md`，最後才改她本人的設定。
 
 ## 跑實驗
 
 ```bash
-# 實驗用的模型伺服器（獨立的 port，不碰她平常用的 1235）
-services/model-server/.venv/bin/python services/model-server/server.py --config ~/.persona/steering.json --port 1299
+# 實驗用的模型伺服器（獨立的 port，不碰正式使用的 1235）
+services/model-server/.venv/bin/python services/model-server/server.py --config <steering 設定> --port 1299
 
 # 實驗腳本
 services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
@@ -88,7 +77,5 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 | [literature-2026-10.html](notes/literature-2026-10.html) | 2026 年與本計畫相關的 LLM 研究，含 11-01 的追加 |
 | [direction-review-2026-10-30.html](notes/direction-review-2026-10-30.html) | 方向整理：我們在做什麼、和誰重疊、什麼是新的 |
 | [plan-steering-2026-11.html](notes/plan-steering-2026-11.html) | 壓力路線還要跑的操縱實驗：失敗次數、多寡、類型、正常任務代價、對照穩健性、動態、ImpossibleBench、27B；規模與費用 |
-| [codebase-map.html](notes/codebase-map.html) | 2026-10-30 的程式庫地圖快照（搬遷前的路徑，見上面的對照表；各節狀態見檔頭） |
 | **研究流程** | |
-| [adoptions.md](adoptions.md) | 她採用了哪些研究成果 |
 | [cloud/README.md](cloud/README.md) | 租用 GPU（GPUtw）跑實驗的流程 |

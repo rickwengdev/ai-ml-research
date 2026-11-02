@@ -81,7 +81,7 @@ def reached(base, after, dim, applied):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    # 1235 is the port [persona]'s runtime serves her on: while she is live, point this at the experiment server (1299)
+    # 1235 is the production server's port: while it is in use, point this at the experiment server (1299)
     # instead, or the sweep queues behind her turns on the one GPU lock.
     ap.add_argument("--url", default="http://127.0.0.1:1235")
     ap.add_argument("--model", default="mlx-community/Qwen3.5-4B-MLX-4bit")

@@ -10,7 +10,7 @@ For each judged row the judge is told nothing of the condition. It gets the prom
   match      1–5, asked separately with the intended state in words: how much the reply shows that state
 
 Judged by default: baseline and the ±1 rows of seed 0 for every method (the comparison E3 needs), through Claude
-(training/claude_batch.mts, [persona]'s sign-in). Writes judged.jsonl next to gens.jsonl; resumes.
+(training/claude_batch.mts, the operator's sign-in). Writes judged.jsonl next to gens.jsonl; resumes.
 
 usage: judge.py --data research/data/<date>-e2e3 [--model sonnet] [--all-values] [--baseline-match]
 

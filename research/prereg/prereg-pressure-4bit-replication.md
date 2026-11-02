@@ -77,7 +77,7 @@ services/model-server/.venv/bin/python research/experiments/pressure_confirm.py 
 services/model-server/.venv/bin/python research/experiments/pressure_confirm.py analyze --replication --out research/data/<日期>-pressure-4bit-replication
 ```
 
-在 Mac 上跑，模型在實驗自己的程序裡載入，不碰她平常用的 1235。可中斷續跑。
+在 Mac 上跑，模型在實驗自己的程序裡載入，不碰角色平常用的 1235。可中斷續跑。
 
 ## 不會做的事
 
