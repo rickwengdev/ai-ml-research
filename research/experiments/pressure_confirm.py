@@ -448,7 +448,7 @@ def main():
     ap.add_argument("cmd", choices=["calibrate", "run", "analyze"])
     ap.add_argument("--out", required=True)
     ap.add_argument("--step0", default=None, help="the original step-0 folder (direction.npz, its k = 3 prompts for calibration)")
-    ap.add_argument("--replication", action="store_true", help="the 9B 4-bit replication: MLX, original environment, −d 1 round, 95% CI")
+    ap.add_argument("--replication", action="store_true", help="the 9B 4-bit replication: MLX, original environment, −d 1 round, 95%% CI")
     ap.add_argument("--backend", choices=["torch"], default="torch")
     ap.add_argument("--model", default=None)
     ap.add_argument("--dtype", default="bfloat16")
