@@ -387,6 +387,11 @@ class ChatModel:
             # their gains get muted and counted like steering. Their tokens are counted only when leanings are
             # present: the hook counts a step on the layers that carry a directional shift.
             gen.applied = self.steering.set(self.vectors, leanings, strength=strength, method=body.get("method"), gated=body.get("gate")) if self.vectors and leanings else None
+            cap = body.get("cap")
+            if cap and self.vectors and cap.get("dim") in self.vectors.directions:
+                if gen.applied is None:
+                    gen.applied = self.steering.set(self.vectors, {}, strength=strength)
+                self.steering.set_caps(self.vectors, cap)
             if endo is not None:
                 if gen.applied is None:
                     gen.applied = self.steering.set(self.vectors, {}, strength=strength) if self.vectors else None

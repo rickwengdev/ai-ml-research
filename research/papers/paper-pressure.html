@@ -744,7 +744,7 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <td>一律探索性：試跑規則是看過一次不通過之後才改的</td>
 </tr>
 </tbody></table>
-<p>照這張表，<strong>目前唯一確認性的控制器結果是 9B 4-bit</strong>，其他的操控結果都是探索性的。這一點在第 7、8 節的結果和摘要裡都要寫明。4-bit 的結果已在新題與新種子上複製（第 5.8 節，<code>prereg-pressure-4bit-replication.md</code>）。這份登記不改任何閘門；4-bit 的步驟 2 與 ImpossibleBench 要另外登記才算確認性。</p>
+<p>照這張表，<strong>目前唯一確認性的控制器結果是 9B 4-bit</strong>，其他的操控結果都是探索性的。這一點在第 7、8 節的結果和摘要裡都要寫明。4-bit 的結果已在新題與新種子上複製（第 5.8 節，<code>prereg-pressure-4bit-replication.md</code>）。這份登記不改任何閘門。4-bit 的步驟 2 與 ImpossibleBench 另外登記（<code>prereg-pressure-4bit-followup.md</code>，2026-11-03 定稿），還沒開跑〔待跑〕。</p>
 <p><strong>9B bf16 的重測</strong>（<code>prereg-pressure-q9-confirm.md</code>，2026-11-02 定稿，在任何新資料之前）。H1 失敗後，使用者決定在新資料上重測一次。</p>
 <ul>
 <li>劑量改用一條不看行為的規則：取 KL 等於 9B 4-bit 一輪（0.107 nat）的劑量 α。</li>
@@ -1959,6 +1959,7 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <li><code>prereg-impossible.md</code>：ImpossibleBench。</li>
 <li><code>prereg-pressure-q9-confirm.md</code>：9B bf16 的確認性重測，11-02 定稿；同日在步驟 2、ImpossibleBench、模型三份登記的修改紀錄加上 9B bf16 的閘門與劑量單位。</li>
 <li><code>prereg-pressure-4bit-replication.md</code>：9B 4-bit 的複製，11-02 定稿；附資料前冒煙測試的揭露與 11-03 的中斷紀錄。</li>
+<li><code>prereg-pressure-4bit-followup.md</code>：9B 4-bit 的步驟 2 與 ImpossibleBench，11-03 定稿，判定沿用原登記；新增複製起點上的對照 E′，G1 成立才跑 G2。</li>
 </ul>
 <p><strong>B. 動作分類規則。</strong></p>
 <ul>

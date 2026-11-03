@@ -684,6 +684,14 @@ RTX 5090，批次 16，約 80 分鐘（連同失敗變體約 100 分鐘）；2,2
 
 依登記，下一步要跑 4-bit 的步驟 2 和 ImpossibleBench 前得另外登記。這次的結果不改 9B bf16、27B、Gemma 的閘門。
 
+## 2026-11-03 9B 4-bit 的步驟 2 與 ImpossibleBench：登記定稿（`prereg-pressure-4bit-followup.md`）
+
+使用者確認全部定稿。還沒開跑，沒有資料。判定沿用原登記；差別是後端、順序（五個階段）、新增 E′（複製的 67 個起點上比較隨機方向與均勻增益），以及 G1 成立才跑 G2。
+
+程式：步驟 2 與失敗變體可以在 MLX 上一次跑一條；MLX 引擎加了封頂；`impossible.py` 的 `--budget`、`--max-tokens` 先前到不了 MLX 的 `SteerAgent`，會實際用 2048／3500，已修正。4-bit 的 ImpossibleBench 還沒跑過，沒有資料受影響。
+
+測試只用替身模型和隨機權重的微型模型，沒有用真實模型生成任何文字。全部約 5–7 天，跑的時候 角色 要關著；ImpossibleBench 的時間還沒量過。
+
 ## API 預算（$105，2026-11-22 到期）
 
 兩把 API key，`training/claude_batch.mts` 輪流使用；每次呼叫的 token 與估計費用記在 `~/.persona/anthropic-usage.jsonl`，硬上限 $100（`~/.persona/anthropic-budget.json`，留 $5 誤差）。價格：Opus 5.5 $4／$20、Sonnet 5.5 $2／$10（每百萬 token）。評審用 effort low。

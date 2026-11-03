@@ -273,6 +273,7 @@ class Steering:
         self.social = {}  # layer index -> orthonormal basis [S, hidden] of the social subspace
         # Per layer, either a fixed shift (old vector files) or what to aim for: (dirs [D, H], means [D], targets [D]).
         self.deltas = {}  # layer index -> mx.array [hidden]
+        self.caps = {}  # layer index -> (unit direction [hidden], ceiling): activation capping (research)
         self.aims = {}  # layer index -> (mx.array [D, hidden], mx.array [D], mx.array [D])
         # Attribution (attribute.py): zero probes added to layer outputs to take gradients by, what each layer gave,
         # and from which token of a multi-token pass the steering applies.
@@ -377,6 +378,15 @@ class Steering:
                 if state.records is not None:
                     state.records[f"shift{i}"] = shift
                 out = out + shift.astype(out.dtype)
+            cap = state.caps.get(i)
+            if cap is not None and decoding and not state.muted:
+                # Meek-style capping, as in torch_engine: the part of the projection above the ceiling is removed,
+                # nothing below it.
+                if state.applied is not None and i == min(state.caps) and not state.deltas:
+                    state.applied.steered_tokens += 1
+                unit, ceiling = cap
+                proj = (out.astype(mx.float32) * unit).sum(-1)
+                out = out - (mx.maximum(proj - ceiling, 0.0)[..., None] * unit).astype(out.dtype)
             if state.probes is not None and i in state.probes:
                 out = out + state.probes[i].astype(out.dtype)
             if state.records is not None:
@@ -454,8 +464,22 @@ class Steering:
         if self.muted and self.applied is not None:
             self.applied.muted_tokens += 1
 
+    def set_caps(self, vectors, cap):
+        """`cap`: {"dim": name, "levels": {layer: ceiling}}, on the band. The ceiling is in units of the projection on
+        that layer's unit direction (the vector normalized), as in torch_engine."""
+        levels = {int(k): float(v) for k, v in (cap.get("levels") or {}).items()}
+        first, last = self.band()
+        self.caps = {}
+        for i in range(first, last):
+            if i in levels:
+                v = np.asarray(vectors.directions[cap["dim"]][i], dtype=np.float32)
+                self.caps[i] = (mx.array(v / (np.linalg.norm(v) + 1e-12)), levels[i])
+        if self.applied is not None:
+            self.applied.alphas[f"cap:{cap['dim']}"] = 0.0
+
     def clear(self):
         self.deltas, self.aims, self.gains, self.muted, self.applied = {}, {}, {}, False, None
+        self.caps = {}
         self.physio = None
         self.update_gain, self.norm_probe, self.last_norm = {}, None, None
 

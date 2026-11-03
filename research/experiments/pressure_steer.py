@@ -20,7 +20,8 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "services", "model-server")), sys.path.insert(0, HERE)
 
-from pressure import BACKEND, BUDGET, CONTEST, cheat_awareness, MAX_TOKENS, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, drive, format_results, load_states, make_agent, model_label, write_run_info, normalize, run_tests, seed_of, spec_text  # noqa: E402
+import pressure  # noqa: E402
+from pressure import BACKEND, CONTEST, cheat_awareness, MODEL, SYSTEM, TEMP, TOOLS, TASKS, Agent, TorchAgent, classify, drive, format_results, load_states, make_agent, model_label, write_run_info, normalize, run_tests, seed_of, spec_text  # noqa: E402
 
 STEP0 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "research", "data", "2026-10-31-pressure")
 START, STEPS, N_SEEDS = 3, 3, 2
@@ -91,7 +92,8 @@ class SteerAgent(Agent):
     def step(self, messages, seed, extra=None):
         from server import split_reply
 
-        body = {"model": MODEL, "messages": messages, "tools": TOOLS, "temperature": TEMP, "seed": seed, "max_tokens": MAX_TOKENS, "thinking_budget": BUDGET, **(extra or {})}
+        # Read at call time, like Agent.step: impossible.py sets its larger budget on the pressure module.
+        body = {"model": MODEL, "messages": messages, "tools": TOOLS, "temperature": TEMP, "seed": seed, "max_tokens": pressure.MAX_TOKENS, "thinking_budget": pressure.BUDGET, **(extra or {})}
         gen = self.cm.complete(body, strength=1.0)
         content, reasoning, calls = split_reply(gen.text, gen.thinking_open)
         if not calls and "<tool_call>" in reasoning:

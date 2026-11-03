@@ -543,6 +543,24 @@ def run(out, n_tasks):
             done[(task["fn"], "S")] = rows
 
 
+def drive_one(agent, coros, on_state=None):
+    """`drive` on the MLX path: one trajectory at a time, in order, one generation at a time."""
+    for coro in coros:
+        value = None
+        while True:
+            try:
+                request = coro.send(value)
+            except StopIteration:
+                break
+            if request[0] == "state":
+                value = agent.state(request[1])[0]
+                if on_state:
+                    on_state()
+            else:
+                extra = request[3] if len(request) > 3 else None
+                value = agent.step(request[1], request[2]) if extra is None else agent.step(request[1], request[2], extra)
+
+
 def drive(agent, coros, max_batch, on_state=None):
     """Advance trajectory coroutines with continuous batching. A coroutine yields ("state", messages) to read the
     residual at the end of a prompt (alone) and ("gen", messages, seed[, extra]) to generate; a generation joins the
@@ -560,6 +578,8 @@ def drive(agent, coros, max_batch, on_state=None):
     import collections
     from concurrent.futures import ThreadPoolExecutor
 
+    if BACKEND["kind"] != "torch":
+        return drive_one(agent, coros, on_state)
     batcher = agent.batcher(max_batch)
     waiting = collections.deque()
 
@@ -872,7 +892,7 @@ def main():
     ap.add_argument("--model", default=None, help="torch backend: a Hugging Face model id, e.g. Qwen/Qwen3.5-27B")
     ap.add_argument("--dtype", default="bfloat16")
     ap.add_argument("--batch", type=int, default=1, help="torch backend: advance all trajectories together, up to this many generations per pass")
-    ap.add_argument("--variant", choices=VARIANTS, default="base", help="step 2 B/C: how a failed round looks (F trajectories only); needs --batch")
+    ap.add_argument("--variant", choices=VARIANTS, default="base", help="step 2 B/C: how a failed round looks (F trajectories only); on torch it needs --batch")
     ap.add_argument("--seed-tag", default="", help="a tag added to every seed (a replication with new seeds); needs --batch")
     ap.add_argument("--k2-only", action="store_true", help="only F up to the k = 3 state and the I branch (the K2 replication); needs --batch")
     args = ap.parse_args()
@@ -883,6 +903,8 @@ def main():
         if args.backend != "torch":
             ap.error("--batch needs --backend torch")
         run_batched(args.out, args.tasks, args.batch, args.variant, args.seed_tag, args.k2_only)
+    elif args.cmd == "run" and args.backend == "mlx" and args.variant != "base":
+        run_batched(args.out, args.tasks, 1, args.variant)  # one at a time (step 2 B and C on 9B 4-bit)
     elif args.cmd == "run" and (args.variant != "base" or args.seed_tag or args.k2_only):
         ap.error("--variant, --seed-tag and --k2-only need --batch (the batched runner)")
     elif args.cmd == "run":
