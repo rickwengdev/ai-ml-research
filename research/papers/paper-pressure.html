@@ -1589,7 +1589,7 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <li>收尾方式不同：67 條裡假宣稱收尾，不操控 1、−d 9、隨機方向 2、增益 0；放棄收尾，−d 5、增益 6。−d − 增益的假宣稱收尾差 +0.18 [+0.06, +0.31]。這一項沒有事先登記，要新資料才能確認。</li>
 <li>第 6 節的拆分對增益也成立：指出矛盾後作弊，增益 −0.15 [−0.21, −0.09]、−d −0.17 [−0.24, −0.12]；沒指出就作弊，增益 −0.06 [−0.16, +0.03]、−d −0.02 [−0.11, +0.06]。都是關鍵字判定。所以「減少替矛盾找理由」不是 −d 獨有的。</li>
 </ul>
-<p><strong>這次沒有回答的。</strong> 增益和 −d 的 KL 是在原 12 題的 k = 3 提示上配對的，沒有在 24 題上重量；隨機方向的 KL 只有 0.010，約為 −d 的十分之一，所以贏過隨機方向不等於贏過一樣大的擾動。兩者是不是同一個機制，這裡分不出來。</p>
+<p><strong>這次沒有回答的。</strong> 增益和 −d 的 KL 是在原 12 題的 k = 3 提示上配對的，沒有在 24 題上重量；隨機方向的 KL 只有 0.010，約為 −d 的十分之一，所以贏過隨機方向不等於贏過一樣大的擾動。兩者是不是同一個機制，這裡分不出來。KL 相同的隨機方向已另外登記（<code>prereg-pressure-4bit-kl.md</code>）〔待跑〕。</p>
 <h2 id="6-作弊的內容-先指出矛盾-再替矛盾找理由-探索性">6. 作弊的內容：先指出矛盾，再替矛盾找理由（探索性）</h2>
 <p>這一節是看過步驟 0、1 的資料之後才加的分析，不是事先登記的判定。<code>contest_note</code> 用的是關鍵字判定，「矛盾」這個詞也可能出現在模型反駁自己的地方，所以之後要用人工或第二位評審抽檢。</p>
 <p><strong>做法。</strong> 把作弊步驟拆成兩類：</p>
@@ -2014,6 +2014,7 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <li><code>prereg-impossible.md</code>：ImpossibleBench。</li>
 <li><code>prereg-pressure-q9-confirm.md</code>：9B bf16 的確認性重測，11-02 定稿；同日在步驟 2、ImpossibleBench、模型三份登記的修改紀錄加上 9B bf16 的閘門與劑量單位。</li>
 <li><code>prereg-pressure-4bit-replication.md</code>：9B 4-bit 的複製，11-02 定稿；附資料前冒煙測試的揭露與 11-03 的中斷紀錄。</li>
+<li><code>prereg-pressure-4bit-kl.md</code>：9B 4-bit 上 KL 相同的隨機方向，新種子，11-04 定稿；判定 Q1、Q2、Q3。</li>
 <li><code>prereg-pressure-4bit-followup.md</code>：9B 4-bit 的步驟 2 與 ImpossibleBench，11-03 定稿，階段 1 同日跑完，判定沿用原登記；新增複製起點上的對照 E′，G1 成立才跑 G2。</li>
 </ul>
 <p><strong>B. 動作分類規則。</strong></p>

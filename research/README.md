@@ -68,6 +68,7 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 | [prereg-pressure-q9-confirm.md](prereg/prereg-pressure-q9-confirm.md) | 9B bf16 的確認性重測：KL 配對劑量、24 題 × 3 個新種子、測試檔可見可改的環境 |
 | [prereg-pressure-4bit-replication.md](prereg/prereg-pressure-4bit-replication.md) | 9B 4-bit 的複製：24 題 × 3 個新種子，−d 1 輪 |
 | [prereg-pressure-4bit-followup.md](prereg/prereg-pressure-4bit-followup.md) | 9B 4-bit 的步驟 2 與 ImpossibleBench，五個階段，加上複製起點上的對照 E′ |
+| [prereg-pressure-4bit-kl.md](prereg/prereg-pressure-4bit-kl.md) | 9B 4-bit 上 KL 相同的隨機方向：新種子，六臂，判定 Q1–Q3 |
 | **論文 `papers/`** | |
 | [paper-draft.html](papers/paper-draft.html) | paper 1 草稿：操控方法與對照（2026-10-31，數字已更正） |
 | [paper-pressure.html](papers/paper-pressure.html) | paper 2 草稿：不需行為標籤的失敗狀態操控（主論文；與 claude.ai 的文件同步） |

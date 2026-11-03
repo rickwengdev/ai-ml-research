@@ -222,19 +222,20 @@ def keep_complete(path, key, complete):
     return done
 
 
-def run(out, step0, batch, replication=False, controls=None, step1=None):
+def run(out, step0, batch, replication=False, controls=None, step1=None, plan=None):
     """`controls` is the finished replication's folder: its starts, its prefixes (read only), and only the two control
-    arms, random and gain (E′, prereg-pressure-4bit-followup.md)."""
+    arms, random and gain (E′, prereg-pressure-4bit-followup.md). `plan` replaces the seed tag, the arms and their
+    interventions on new starts (pressure_klcontrols.py): {"tag", "arms", "bodies", "prepare"}."""
     os.makedirs(out, exist_ok=True)
     write_run_info(out)
-    if replication:  # the registered dose: one round, no calibration (the KL is the one step 1 measured)
+    if replication and not plan:  # the registered dose: one round, no calibration (the KL is the one step 1 measured)
         cal = {"alpha": 1.0, "kl_alpha": KL_TARGET, "kl_target": KL_TARGET, "kl_one_round": KL_TARGET, "matched": True}
         json.dump(cal, open(os.path.join(out, "calibration.json"), "w"), indent=1)
     cal = json.load(open(os.path.join(out, "calibration.json")))
     if not cal.get("matched"):
         raise SystemExit(f"calibration did not reach KL {KL_TARGET:.4f} (alpha {cal['kl_alpha']:.4f}, g {cal['kl_gain']:.4f}); not running")
     alpha = cal["alpha"]
-    tag = "replication" if replication else "confirm"  # the replication's seeds are its own
+    tag = plan["tag"] if plan else "replication" if replication else "confirm"  # the replication's seeds are its own
     ppath, gpath = os.path.join(controls or out, "prefix.jsonl"), os.path.join(out, "gens.jsonl")
     if controls:
         pre_done = {}
@@ -242,11 +243,13 @@ def run(out, step0, batch, replication=False, controls=None, step1=None):
             pre_done.setdefault((r["env"], r["task"], r["rep"]), []).append(r)
     else:
         pre_done = keep_complete(ppath, lambda r: (r["env"], r["task"], r["rep"]), lambda rs: rs[-1]["k"] == START - 1 or not rs[-1]["has_call"])
-    arms = CONTROL_ARMS if controls else ARMS
+    arms = plan["arms"] if plan else CONTROL_ARMS if controls else ARMS
     g = json.load(open(os.path.join(step1, "calibration.json")))["g"] if controls else None
     arm_done = keep_complete(gpath, lambda r: (r["env"], r["arm"], r["task"], r["rep"]), lambda rs: rs[-1]["k"] == START + STEPS - 1 or not rs[-1]["has_call"])
     states = load_states(controls or out)
     agent = EnvAgent(make_steer_agent(os.path.join(step0, "direction.npz")))
+    if plan:
+        plan["prepare"](agent)
     tok = agent.cm.tokenizer
     band = slice(int(agent.L * 0.3), int(agent.L * 0.8))
 
@@ -341,7 +344,7 @@ def run(out, step0, batch, replication=False, controls=None, step1=None):
             if (env, arm, task["fn"], rep) in arm_done:
                 continue
             msgs, prv, cur = copy.deepcopy(messages), set(prev), list(current)
-            extra = arm_body(arm, g) if controls else {"steering": {"pressure": -alpha / DOSE_SCALE}, "method": "add", "gate": False} if arm == 2 else None
+            extra = plan["bodies"][arm] if plan else arm_body(arm, g) if controls else {"steering": {"pressure": -alpha / DOSE_SCALE}, "method": "add", "gate": False} if arm == 2 else None
             for k in range(START, START + STEPS):
                 arr = yield ("state", msgs)
                 proj = ((arr - base) * agent.unit).sum(-1)
