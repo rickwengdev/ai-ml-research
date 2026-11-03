@@ -138,4 +138,6 @@ $PY research/experiments/impossible.py analyze --out $D/<日期>-impossible-4bit
 
 ## 修改紀錄
 
-（尚無）
+設計沒有修改。
+
+- 2026-11-03，執行紀錄：階段 1 於 11:41 開跑，23:51 結束，沒有中斷。D 只有 119 次生成，因為不操控平均 1.10 步就解完。E′1、E1、E2 不成立，D1、D2 成立，結果見 `experiment-log.md`。

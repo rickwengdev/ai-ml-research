@@ -1,0 +1,5 @@
+{
+ "backend": "mlx",
+ "model": "mlx-community/Qwen3.5-9B-MLX-4bit",
+ "dtype": "mlx 4-bit"
+}
