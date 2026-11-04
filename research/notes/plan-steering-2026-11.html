@@ -34,6 +34,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <p>依據：<code>experiment-log.md</code>（第三、四、五項研究）、<code>prereg/prereg-pressure*.md</code>、<code>papers/paper-pressure.md</code> 的限制與後續工作、使用者 10-31 提出的「失敗次數、多寡、類型」三個維度。</p>
 <p>狀態：2026-11-01 已登記（<code>prereg/prereg-pressure-models.md</code>、<code>prereg-pressure-step2.md</code>、<code>prereg-impossible.md</code>），由 <code>cloud/jobs/pressure-all.sh</code> 在 27B、9B、Gemma 4 31B 上執行。登記時與本規劃不同的地方：C 不納入「程式真的有錯」（要讓模型一路失敗又不對它說謊做不到，改由 D 量），改為環境錯誤與逾時兩種；9B 改在 GPU 上以 bf16 重跑；ImpossibleBench 的思考預算放寬到 4096。</p>
 <p><strong>2026-11-03 更新</strong>：9B 4-bit 的複製 H1r 成立（作弊差 −0.20 [−0.31, −0.09]，停下 0.25，門檻 0.27）。4-bit 的步驟 2 與 ImpossibleBench 已另外登記（<code>prereg/prereg-pressure-4bit-followup.md</code>），五個階段，全部約 5–7 天。階段 1 已跑完：E′1、E1、E2 不成立（−d 和均勻增益的作弊差 +0.02 [−0.11, +0.14]，贏過 3／5 條隨機方向），D1、D2 成立。依登記，階段 4、5 要重新討論，階段 2 以後等使用者決定。下一步是 KL 相同的隨機方向（<code>prereg/prereg-pressure-4bit-kl.md</code>，11-04 定稿，約 20–21 小時），還沒開跑。</p>
+<p><strong>2026-11-05 更新</strong>：KL 相同的隨機方向跑完（約 24 小時，69 個起點）。Q1 成立（三條 KL 相同的隨機方向平均讓作弊 −0.11 [−0.18, −0.04]），Q2 不成立（−d 對它們 −0.02 [−0.10, +0.05]），Q3 成立（假宣稱收尾 −d 比增益多 +0.13、比隨機多 +0.12，CI 都不含 0）。依登記：作弊的下降是擾動大小造成的，和方向無關；d 的方向性只留在「宣稱測試通過」。階段 4、5（ImpossibleBench）若要跑，臂要改成不操控、−d、增益、KL 相同的隨機，並重新登記；是否跑等使用者決定。</p>
 <p><strong>2026-11-02 更新</strong>：</p>
 <ul>
 <li><strong>9B bf16 的步驟 1</strong>：H1 不成立（−d 1 輪讓 77% 的軌跡停下）。</li>

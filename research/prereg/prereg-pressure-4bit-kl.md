@@ -138,4 +138,6 @@ $PY research/experiments/pressure_klcontrols.py klcheck --step0 $S0 --out $OUT
 
 ## 修改紀錄
 
-（尚無）
+設計沒有修改。
+
+- 2026-11-05，執行紀錄：11-04 07:28 開始校準（三條隨機方向 3.430、3.369、3.307 輪，KL 都在目標的 5% 內），07:48 開始生成，11-05 06:52 生成結束，07:17 `klcheck` 結束，沒有中斷。72 個起點裡 69 個符合條件，排除 `merge_ranges` 種子 0、`parse_bool` 種子 0、`roman` 種子 1。六臂 1,174 次生成，每小時約 51 次，比預估的 70 次慢。Q1 成立、Q2 不成立、Q3 成立，結果見 `experiment-log.md` 2026-11-05。
