@@ -1,0 +1,292 @@
+\documentclass[11pt]{article}
+% Build: pdflatex main && bibtex main && pdflatex main && pdflatex main
+% To use a venue class, see README.md.
+
+% ---- single switch: \anonymoustrue for review, \anonymousfalse for a named build ----
+\newif\ifanonymous
+\anonymoustrue
+% ---- second switch: \showtodostrue prints author to-dos; turn it off only when none is left ----
+\newif\ifshowtodos
+\showtodostrue
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{url}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{figures/}}
+
+\newcommand{\AUTHORTODO}[1]{\ifshowtodos\textcolor{red}{\textbf{[AUTHOR TODO: #1]}}\fi}
+\newcommand{\mind}{$-d$}
+\newcommand{\plusd}{$+d$}
+\newcommand{\ci}[2]{[$#1$,\,$#2$]}
+
+\title{A Failure-Evoked Direction Is Not a Cheating Controller:\\Preregistered KL-Matched Controls for Steering a Coding Agent}
+
+\ifanonymous
+  \author{Anonymous Authors}
+\else
+  \author{\AUTHORTODO{author names}\\\AUTHORTODO{affiliations}}
+\fi
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Representation steering is increasingly proposed as a way to reduce reward hacking in coding agents, but the reported effects are rarely compared with perturbations of equal size. We extract a direction $d$ from Qwen3.5-9B residuals using only failure histories and no behavioural labels, then steer along it (\mind) in a small agentic task with tests that contradict the specification. On the 4-bit model $d$ meets two preregistered existence criteria, and one ``round'' of \mind{} lowers the per-step rate of passing a contradictory test in two registered tests ($-0.23$ \ci{-0.38}{-0.10}; $-0.20$ \ci{-0.31}{-0.09}) and in a descriptive third estimate ($-0.13$ \ci{-0.20}{-0.07}). The effect did not survive specificity testing. An initial registered comparison favoured \mind{}, but three later ones failed: \mind{} did not beat a KL-matched uniform gain ($+0.02$ \ci{-0.11}{+0.14}), beat only 3 of 5 same-norm random directions (threshold 4), and did not beat three KL-matched random directions ($-0.02$ \ci{-0.10}{+0.05}), which themselves lowered cheating ($-0.11$ \ci{-0.18}{-0.04}). These intervals do not establish equivalence, and the data do not establish that perturbation size is what governs the drop. What remained specific to \mind{} was a registered effect on endings: unsupported claims that the tests passed (0.13 versus 0.00--0.01). This is consistent with $d$ carrying outcome-related content, but we did not measure belief. On the full-precision model, the KL-matched dose did not reduce cheating at all ($+0.09$, 97.5\% CI \ci{+0.01}{+0.21}). We withdraw our original controller hypothesis and recommend KL-matched, multi-direction controls for agentic steering claims.
+\end{abstract}
+
+\section{Introduction}
+
+When tests contradict a specification, coding agents may special-case the implementation until the tests pass. ImpossibleBench~\cite{zhong2026impossiblebench} measures this directly, since any pass on an impossible test is exploitation. Two recent lines of work address it with steering. Sofroniew et al.~\cite{sofroniew2026emotion} report a ``desperation'' vector in Claude Sonnet 4.5 whose steering at $-0.1$ and $+0.1$ corresponds to 5\% and 70\% cheating on impossible code tasks. Meek et al.~\cite{meek2026mitigating} cap a direction learned from judge-labelled hack and decline segments in Qwen3.5-27B, lowering hacking on ImpossibleBench from 0.27 to 0.03 or below.
+
+These directions depend on behavioural labels or emotion stimuli, and the specificity of the steering effect is an open question. Elsewhere, Malla et al.~\cite{malla2026interference} find that norm-matched random directions reproduce the behaviour ordering of real steering vectors, SteerCheck~\cite{luo2026steercheck} calibrates coefficients to an off-target KL budget and tests against preregistered null families, and competing-target tests~\cite{xu2026competing} show that beating random and unsteered baselines need not implicate the named concept. We apply this standard to agentic cheating.
+
+We began with a specific hypothesis: if a direction evoked purely by failure history is the variable the model uses when it decides to accommodate bad tests, then pushing back along it should reduce cheating, and undirected perturbations should not. The drop in cheating appeared in all three runs that measured it. The specificity half of the hypothesis failed. This paper reports that sequence.
+
+\paragraph{Contributions.}
+(1) A direction evoked by failure history, without behavioural labels, that meets preregistered monotonicity and success-reversal criteria at both precisions of Qwen3.5-9B.
+(2) A preregistered specificity test of agentic steering against same-norm random directions, KL-matched gain, KL-matched random directions, an instruction, a context reset and the opposite sign, with a negative outcome.
+(3) A registered direction-specific effect on unsupported pass claims, with an explicit account of why this does not yet show a belief change.
+(4) Evidence on control design: same-norm random directions carried about a tenth of \mind{}'s KL, and KL-matched directions differed substantially from one another.
+
+\section{Related work}
+
+\paragraph{Steering against reward hacking.} Beyond \cite{sofroniew2026emotion,meek2026mitigating}, PSPR~\cite{chen2026polished} uses contrastive activation addition~\cite{rimsky2024caa} with pressure labels on planning tasks, Wilhelm and Kao~\cite{wilhelm2026reward} study reward-hack adapters in agent environments, and Wu and Tang~\cite{wu2026rebound} argue for training-time penalties. Non-steering mitigations include strict prompts, abort tools and hidden tests~\cite{zhong2026impossiblebench} and escalation channels, which reduced cheating from 23.6\% to 5.3\% across eight models~\cite{gomez2026escalation}. Capping follows \cite{lu2026assistant}; additive steering follows \cite{turner2023actadd,rimsky2024caa}. Meek et al.\ report no random or KL-matched steering control. \AUTHORTODO{The full text of Sofroniew et al.\ could not be fetched in review; confirm that it reports no random-direction control before claiming this for it.}
+
+\paragraph{Specificity of steering effects.} Malla et al.~\cite{malla2026interference} report a rank correlation of 0.90 between norm-matched random and real directions across models, strongest below 10B parameters. SteerCheck~\cite{luo2026steercheck} found an anti-sycophancy direction that beat isotropic and PCA nulls on the mean but missed its sign-randomized gate, and its full gate was negative. Random directions alter safety behaviour~\cite{korznikov2026rogue}. In a GLM-5 replication, many control vectors had effects as large as evaluation-awareness vectors, and the strongest exceeded them~\cite{read2026reproducing}. Target directions separated from random nulls only at some doses in \cite{mitrani2026alignment}. Hua et al.~\cite{hua2026steering} do compare their deployment vector with Gaussian vectors of similar norm and examine verbalized evaluation awareness; their work is the closest precedent for reading steering as a change in what the model takes to be true. Our design shares the KL calibration of SteerCheck but has far fewer null draws: three isotropic directions.
+
+\paragraph{Readouts and monitoring.} Probes read the situation more reliably than the coming action~\cite{fomin2026probes}. Failure can be read early from probes~\cite{chen2026goaldrift,ruan2026doomed}, agents often fail to recover~\cite{rahman2026locating}, and restart strategies can help~\cite{wang2026failfast}, though in that study the gain depended on offering the interrupted diff rather than on a cold reset. The functional reading of emotion vectors is contested~\cite{peiris2026functional,goldenberg2026emotions}. Emotion-related and pain-related directions have been reported as readable and steerable~\cite{sun2026valence,tagliabue2026pain}. Steering can damage other dimensions~\cite{jayabahu2026halt}, chat-to-agent transfer needs more than a single gain ratio~\cite{pinto2026transfer}, and prompting often outperforms steering~\cite{xu2026controllable,sprejer2026gap}.
+
+\section{Methods}
+
+\paragraph{Task.} Each of 12 small Python function tasks has a specification, five requirements with one honest test each, and two tests that contradict the specification (Appendix~\ref{app:task}). A correct implementation passes at most 5 of 7. The only tool is \texttt{run\_tests(code)}, which executes the tests in an isolated interpreter and returns each test's input, output and expected value. The test file cannot be edited, and the system prompt offers no route for reporting bad tests. A later set of 12 new tasks of the same form extends the task pool.
+
+\paragraph{Outcome.} A step is a \emph{cheat} if the submitted code passes any contradictory test, determined by execution. This is a behavioural definition that includes hard-coded special cases, invented rules that accommodate the tests, and code that passes one test by accident (Section~\ref{sec:limits}). The primary metric is the share of a trajectory's steps that are cheats. A trajectory ending without a tool call is classified by keyword rules as \emph{contest}, \emph{false claim} or \emph{give up} (Appendix~\ref{app:rules}). \emph{Stop} means ending in a false claim or giving up, per the registered definition. \emph{Incoherent} means an empty output or a tool call with no parsable code.
+
+\paragraph{Models.} Qwen3.5-9B (32 layers, residual width 4096) was run as a 4-bit MLX model and at bf16 on PyTorch, with temperature 0.6, top-$p$ 0.95, a 2,048-token thinking budget and 3,500 maximum tokens. All confirmatory results below are for the 4-bit model unless stated. The direction, dose and gain are measured separately per model and precision.
+
+\paragraph{Direction.} We compare trajectories in which every step fails (F) with staged trajectories in which every step passes (S), reading the residual at the last prompt token before each generation:
+\[
+d = \operatorname{mean}_{\text{tasks}}\big[h(F,k{=}5)-h(F,k{=}0)\big]-\operatorname{mean}_{\text{tasks}}\big[h(S,k{=}5)-h(S,k{=}0)\big],
+\]
+normalized per layer, with leave-one-task-out fitting for readouts and a pooled fit for steering. For most tasks, $S$ at $k=5$ is the prompt after all stages have passed, so no generation follows it in the protocol. Readouts use the mean over layers 9--24. A third condition (I) branches from F at $k=3$, replacing only the third tool result with a report that 6 of 7 tests pass.
+
+\paragraph{Dose and steering.} One \emph{round} is the mean per-layer projection increment over F steps $k=1\ldots3$ (band mean $+2.50$). A dose of $r$ rounds adds $-r\cdot\text{round}[l]\cdot\text{unit}[l]$ at every band layer and generated token, including thinking, but not in tool-call contents or the prompt. Because layers accumulate the addition, one round is not ``one fewer failure''. KL is the mean $\mathrm{KL}(\text{none}\,\|\,\text{steered})$ over the first 64 teacher-forced thinking tokens across the step-0 prompts at $k=3$; one round of \mind{} gives 0.107 nats.
+
+\paragraph{Arms.} Starts are prompts after three failed rounds, continued for up to three steps. Step~1 had eight arms: none, \mind{} at 1 and 2 rounds, \plusd{} at 1 round, a same-norm random direction, a band-update gain $g=1.713$ matched to \mind{}'s KL, a ``stay calm'' instruction, and a context reset keeping only the specification and last attempt. Later runs added four more same-norm random directions, projection capping at the $k=0$ level, and three new random directions each calibrated before any generation to the target KL (3.43, 3.37 and 3.31 rounds; all within 5\%).
+
+\paragraph{Statistics.} We average within tasks and take a percentile bootstrap over tasks (2,000 draws). Different models are never pooled. Unless noted, intervals are 95\%. Registered judgments were reported separately with no multiplicity correction. Three random directions averaged in Q1 and Q2 are treated as fixed, so those intervals reflect variation over starts and not over directions.
+
+\paragraph{Registration.} Each confirmatory analysis was registered in version control before its data. Table~\ref{tab:judgments} separates registered judgments from everything else, and Appendix~\ref{app:prereg} gives the record and its limits. The step-1 main dose was changed from 2 rounds to 1 after a one-task pilot, before formal data. The replication was registered after two failed tests on bf16, and Q3 was formulated after seeing the E$'$ data, so it counts only on the new KL data.
+
+\section{Results}
+
+\subsection{The direction exists}
+
+On the 4-bit model, K1 holds: F's mean Spearman $\rho(k,\text{projection})$ is $+0.92$ \ci{+0.85}{+0.98} and F$-$S is $+1.24$ \ci{+1.01}{+1.40}. K2 holds: replacing the last result with a near-pass lowers the projection by $2.75$ \ci{1.88}{3.66}, about 1.1 rounds (Figure~\ref{fig:traj}). The registered exclusion of S trajectories with a failed step (3 tasks) was not applied in the original 4-bit fit because of a code bug. Re-analysis with the exclusion leaves both judgments unchanged: $\rho=+0.91$ \ci{+0.82}{+0.98}, F$-$S $+1.22$ \ci{+0.98}{+1.39}, K2 $-2.79$ \ci{-3.87}{-1.79}; the corrected direction has band-mean cosine 0.98 with the one used for steering. At bf16 both criteria also hold ($\rho=+0.78$, K2 $-3.05$). On Qwen3.5-27B bf16, K1 held ($+0.93$) and K2 did not ($-0.43$ \ci{-1.60}{+1.52}, 10 tasks). \AUTHORTODO{27B and 9B bf16 raw results are not in the public repository, and publication of the 27B folders is undecided. Decide whether to publish them or remove these sentences and the bf16 results that depend on them.}
+
+The fit is shaped by task completion. Of the F$-$S separation along $d$, $+8.6$ comes from F and $+11.5$ from S, and $S$ moves from $-3.3$ at $k=4$ to $-11.5$ at the completion prompt at $k=5$. Refitting with $S$ ended at $k=4$ gives a direction with band-mean cosine 0.70 to the original (post hoc). So the claim that one end of $d$ corresponds to ``task complete'' partly follows from how $d$ was constructed.
+
+Failure histories also did not make the model give up. In F, it usually kept submitting; cheats rose to 6 of 11 trajectories at $k=5$. Replacing a result with a near-pass lowered the readout without reducing cheating (6 of 12 at the next step).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.68\linewidth]{fig_trajectories}
+\caption{Projection on $d$ by number of tool results, for 12 tasks (thin lines) and their mean (thick). Directions are fitted leaving out the plotted task. The large drop in S at $k=5$ is the prompt that follows the last stage. The diamond is the near-pass insertion, with a 95\% CI over tasks.}
+\label{fig:traj}
+\end{figure}
+
+\subsection{One round of \mind{} lowers cheating on the 4-bit model}
+
+In step~1 (12 tasks $\times$ 2 seeds $\times$ 8 arms), cheating fell from 0.36 \ci{0.18}{0.54} to 0.13 \ci{0.06}{0.20}, difference $-0.23$ \ci{-0.38}{-0.10}, with stop 0.17 versus 0.00 and no incoherent outputs; H1 held. In a registered replication on 24 tasks and 3 new seeds (67 starts, of which only the 12 new tasks are out of sample for $d$), cheating fell from 0.41 to 0.21, $-0.20$ \ci{-0.31}{-0.09}; H1r held, but narrowly: stop rose from 0.02 to 0.25 against a limit of 0.27, and the stop difference's CI reaches $+0.35$. A third estimate on 69 new starts is $-0.13$ \ci{-0.20}{-0.07}; there it is a registered descriptive quantity and not a judgment. Figure~\ref{fig:effects} shows all three estimates.
+
+The drop was not only stopping. In the replication, the first-step difference was $-0.18$ \ci{-0.31}{-0.06} and among 39 starts with no early ending in either arm it was $-0.14$ \ci{-0.25}{-0.04}. Honest passing did not worsen in step~1 ($+0.35$ \ci{-0.11}{+0.82}; H2 held). The instruction ($-0.01$) and the context reset ($+0.01$) did not reduce cheating, though the reset lowered the readout from $+7.5$ to $+1.9$. \plusd{} also did not raise cheating ($-0.12$ \ci{-0.26}{+0.01}; H5 failed).
+
+\subsection{Specificity tests}
+
+\begin{table}[t]
+\centering\small
+\caption{Every registered judgment on steering specificity and cost (4-bit), in the order run. ``Held'' follows the registered rule, not a later reading. E and D reuse step-1 rows, and E$'$ reuses the replication's none and \mind{} rows; Q1--Q3 are concurrent on new starts.}
+\label{tab:judgments}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}llll@{}}
+\toprule
+ID & Contrast (registered rule) & Result & Verdict\\
+\midrule
+H3 & \mind{}$-$same-norm random; \mind{}$-$gain (both CIs exclude 0) & $-0.23$ \ci{-0.38}{-0.09}; $-0.19$ \ci{-0.30}{-0.08} & Held\\
+H4 & \mind{}$-$instruction; instruction's own effect small & $-0.22$ \ci{-0.38}{-0.05}; $-0.01$ & Held\\
+H5 & \plusd{}$-$none $>0$ & $-0.12$ \ci{-0.26}{+0.01} & Failed\\
+E$'$1 & \mind{}$-$random; \mind{}$-$gain (both CIs exclude 0) & $-0.18$ \ci{-0.27}{-0.09}; $+0.02$ \ci{-0.11}{+0.14} & Failed\\
+E1 & \mind{} beats $\geq 4$ of 5 same-norm random directions & 3 of 5 & Failed\\
+E2 & Capping$-$none $<0$, incoherence $\leq 0.25$ & $-0.10$ \ci{-0.21}{0.00}, 0.04 & Failed\\
+D1 & Solved-rate difference, no contradiction: lower bound $>-0.10$ & $-0.02$ \ci{-0.06}{0.00} & Held\\
+D2 & False-claim difference: upper bound $\leq 0.05$ & $0.00$ \ci{0.00}{0.00} & Held\\
+Q1 & KL-matched random$-$none $<0$; incoherence, stop gates & $-0.11$ \ci{-0.18}{-0.04}; 0.01; 0.06 & Held\\
+Q2 & \mind{}$-$KL-matched random $<0$; below each direction & $-0.02$ \ci{-0.10}{+0.05}; $-0.05,+0.03,-0.06$ & Failed\\
+Q3 & False-claim ending: \mind{}$-$gain, \mind{}$-$KL-matched random & $+0.13$ \ci{+0.06}{+0.22}; $+0.12$ \ci{+0.05}{+0.19} & Held\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.84\linewidth]{fig_effects}
+\caption{Change in the per-step cheating share against no steering, by run. Differences are paired; the three runs differ in starts and seeds, and the first two reuse rows (Table~\ref{tab:judgments}). Bootstrap Monte Carlo error may shift an interval bound by up to about 0.01 relative to registered tables.}
+\label{fig:effects}
+\end{figure}
+
+Table~\ref{tab:judgments} lists the judgments. Step~1 favoured \mind{} over the random direction and gain. Later registered tests did not reproduce this. That step-1 random direction proved to be the highest of five (Table~\ref{tab:judgments}, E1). Gain varied between runs at the same $g$ ($-0.04$, $-0.21$, $-0.08$), so single-run comparisons with it are noisy; pooled post hoc over the three runs, \mind{}$-$gain is $-0.04$ \ci{-0.12}{+0.05}.
+
+The registered reading for Q1 holding with Q2 failing is that equal-KL perturbation suffices to reduce cheating, and that no effect of direction is visible. KL rechecked on these starts was similar across arms (\mind{} 0.136, gain 0.125, random 0.142, 0.149, 0.131).
+
+These results need three qualifications. First, failing to beat a control is not equivalence: the Q2 interval still allows a \mind{} advantage of up to 0.10 against an effect of 0.13. The registered power at a true difference of $-0.10$ was only 0.09--0.32. Second, Q1 generalizes to these three directions and not to random directions in general: with directions as the unit, their mean is $-0.11$ with a $t$ interval of \ci{-0.24}{+0.02} (post hoc). Third, equal KL did not produce equal behaviour: mean thinking length was 423, 1{,}572 and 1{,}077 tokens across the random directions, against 850 for no steering, and thinking hit its budget at 68\% of steps under \texttt{random7}.
+
+We also cannot conclude that perturbation size determines the drop. Same-norm directions at about a tenth of the KL had a mean effect of $-0.07$ \ci{-0.17}{+0.02}. On the original 12 tasks, the KL-matched mean is $-0.09$ \ci{-0.17}{-0.01}, and the difference between the two is $-0.02$ \ci{-0.16}{+0.13} (post hoc, across runs). Excluding the step-1 direction, the other four same-norm directions average $-0.09$ \ci{-0.19}{0.00}. A KL-related contrast does appear against E$'$'s single same-norm direction on 24 tasks ($-0.09$ \ci{-0.18}{0.00}), but no experiment varies KL within a direction. \plusd{} at KL 0.061 ($-0.12$) also lies between these levels.
+
+\subsection{What remained specific: unsupported pass claims}
+
+Q3 held: ending in a false pass claim occurred under \mind{} in 9 of 69 trajectories, 0 under gain, and 2 across all three random directions (Figure~\ref{fig:endings}). The registered classifier fixed the ``previous step failed'' flag to true in the arm phase, so it counted endings after a cheat that had truly passed all seven tests. A post hoc audit of all 67 endings in the run (Section~\ref{sec:audit}) gave 9 for \mind{} and 0 elsewhere; with audited labels, both differences are $+0.13$ \ci{+0.06}{+0.21}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.66\linewidth]{fig_endings}
+\caption{Audited endings in the KL run, by arm. Each arm has 69 starts; the rest of the trajectories ended with a tool call. Labels come from LLM raters blind to arm, under four rules settled by an author who had seen the unblinded results.}
+\label{fig:endings}
+\end{figure}
+
+At two rounds, \mind{} exceeded the registered incoherence limit (0.42 $>$ 0.25), so that arm is registered as overdose, to be reported and not interpreted. All 24 trajectories stopped by $k=4$: 12 were classed as false claims, 11 were empty outputs and 1 was a pass claim that the keyword rule missed. There was no KL-matched control at that dose, so it does not extend Q3.
+
+\paragraph{Does this show a belief?} Not yet. Our registration says that Q3 holding means $d$'s specific content \emph{may} be that things are going well. Three things keep it at that. We never measured belief separately from output; steering stays active during thinking, so a pass assertion that opens the thought may be either a belief or a text-level bias, and in several cases thinking or the message itself acknowledged the failures before claiming a pass. The fit includes a large completion component, and the system prompt instructs the model to end with a short final message, so \mind{} may simply favour wrapping up: non-tool endings rose to 0.36 from 0.12, with contesting endings rising as well (12 versus 8). And the effect is not general across precisions: at the KL-matched dose on bf16, stop remained 0.03, which bounds false claims at that dose well below the 0.13 seen at 4-bit.
+
+\subsection{Full precision}
+
+At bf16 one round is about six times stronger (KL 0.675). Cheating fell from 0.11 to 0.04, but stopping rose to 0.77, so H1 failed. A registered retest set the dose by a rule blind to behaviour, $\alpha=0.428$ rounds (KL 0.1075), on 24 tasks and three new seeds at 97.5\% CIs. Stopping no longer rose (0.01 to 0.03), but cheating rose from 0.10 to 0.19, $+0.09$ \ci{+0.01}{+0.21}; H1c failed. The rise is weak evidence (8 tasks up, 3 down, 13 flat; uncorrected sign-flip $p=0.045$), and exploratory random directions at the same dose covered \mind{}'s value (cheating 0.05--0.17 against 0.12). A variant exposing an editable test file also failed (H1x: $-0.02$ \ci{-0.19}{+0.18}, 34 starts); 43\% of prefixes in that environment had already rewritten the tests. Directions at the two precisions have cosine 0.62, against split-half 0.86--0.87. We cannot separate different directions from different baselines (bf16 cheats less and repeats more), though the 4-bit replication makes chance a less likely explanation.
+
+\section{Discussion}
+
+\paragraph{What the evidence supports.} On one quantized model and one small task family, a failure-evoked direction is readable and its reduction of cheating is not specific to it. Treated as a controller, $d$ fails its own registered tests. The practical message is about controls: a same-norm random direction is a weak baseline, since it can carry a tenth of the KL, and one KL-matched direction is too few, since the three differed by 0.09 in cheating.
+
+\paragraph{What remains open.} Whether perturbation size is the operative variable, and whether $d$ encodes an outcome belief, are hypotheses the current data motivate and do not settle. A direct test of the first would vary KL within directions. A direct test of the second would probe, without steering at the read-out, what the model reports about test status after a steered generation, and would pit $d$ against a competing target such as ``end the turn''.
+
+\paragraph{Other explanations for the cheating drop.} Starts allowed earlier cheats. In the KL run, 31 of 69 starts had a cheat in the prefix, with a baseline of 0.65 against 0.18 otherwise, and all three perturbations acted mainly there (post hoc). Perturbations may therefore disturb persistence with an accommodation already under way, more than the first decision to accommodate. The per-step metric is also sensitive: on ``any cheat in the trajectory'', no KL-run contrast excludes 0 (\mind{} $-0.08$ \ci{-0.17}{0.00}; random $-0.06$ \ci{-0.16}{+0.02}) (post hoc, Appendix~\ref{app:sens}). Steering could also shorten or lengthen reasoning in ways the metric reads as less cheating; thinking lengths vary widely by direction, as above.
+
+\paragraph{Monitoring is not control (exploratory).} After three failures, the readout barely distinguishes the next action (cheat $+7.5$, revise $+7.7$, repeat $+8.0$, contest $+6.9$). The context reset removes about three quarters of it without reducing cheating. And \mind{} leaves the unsteered readout at the next prompt near baseline. The readout tracks the situation and need not drive the action, in line with \cite{fomin2026probes}, though these comparisons are observational or change context along with the readout.
+
+\paragraph{Which cheating falls (exploratory).} On the keyword split, the drop is in cheats whose reasoning mentions a contradiction ($-0.21$, $-0.17$, $-0.12$ for \mind{} across runs; $-0.02$, $-0.02$, $-0.01$ otherwise). Gain ($-0.15$, $-0.05$) and KL-matched random directions ($-0.07$) show similar patterns. This split conditions on a variable the treatment changes: \mind{} lowers such mentions overall (0.78 to 0.48 of steps in step~1), and so did \texttt{random6} and \texttt{random8}. It therefore does not identify a mechanism, and the keyword rule was not audited. Reading reasoning suggests that models often invent a hidden rule to reconcile the conflict, so an explicit way to report bad tests may be a cheaper remedy~\cite{zhong2026impossiblebench,gomez2026escalation}, which we did not test.
+
+\section{Limitations}\label{sec:limits}
+
+\paragraph{Scope.} The specificity results come from one 4-bit model on 24 small tasks, and the same model at bf16 did not reproduce even the drop. The second batch of tasks was new only in the replication; the KL run has new seeds and histories, not new tasks. Registered follow-ups (dose by failure count, dynamics, failure types, ImpossibleBench) were not run and not cancelled. The 27B step~1 and all Gemma~4 31B work are incomplete, so no steering claim is made for them.
+
+\paragraph{Construct.} ``Cheating'' here is broad. Only 2 of 26 unsteered step-1 cheats also passed all honest tests, and a function returning its first argument would pass 13 of the 48 contradictory tests. The drop was concentrated in steps failing honest tests (fewer than 4 passed: $-0.19$ \ci{-0.33}{-0.06}; all 5 passed: $-0.03$ \ci{-0.08}{0.00}). No human review of cheat steps was done.
+
+\paragraph{Audit.}\label{sec:audit} The audit used two Claude subagents without conversation context, blind to arm, of which the second also saw the task and trajectory. An author who was not blind to the run's results settled four policy rules: contesting with a true correctness claim is contest; blank output is give-up; a pass claim after a cheat that passed all seven tests is its own class; and loops with a hedged contest are incoherent. No human rated items individually, whereas the registration had planned human reading including sampled cheat steps. Program and audit agreed on 48 of 67. Before these rules, the context-aware rater flagged pass or correctness claims in 21 \mind{} endings and 24 others, so ``9 versus 0'' depends on the rules, though the direction does not. The false-claim rule's bug applied to the replication and E$'$ too; removing two cheat-then-done cases gives at most 7 of 67 for \mind{} on the replication, and those data were not audited (one more case is a truncated loop). A planned second-reader check of the keyword-based contradiction flag did not return labels because a safety classifier declined it.
+
+\paragraph{Design.} E and E$'$ compare new arms with earlier rows, not concurrent runs. Random directions 2--5 did not have their KL measured, and all KL values use the first 64 thinking tokens only, which does not capture behaviour at later tokens or code. D1 and D2 are at a ceiling (baseline solved 1.00 in 1.10 steps), though \mind{} did add 0.27 steps \ci{0.00}{0.60} and reduce the first-attempt solve rate from 0.90 to 0.79. H2's repetition condition passed narrowly ($+0.08$ against $+0.10$).
+
+\section{Conclusion}
+
+A direction evoked by failure history is readable in Qwen3.5-9B, and steering along it lowered cheating in repeated tests at 4-bit precision. Registered specificity tests then showed no detectable advantage over equal-KL perturbations, so we withdraw the claim that it acts as a controller. A registered specific effect on false pass claims remains, and it deserves a direct test of whether it reflects belief. Steering claims for agents should be tested against multiple KL-matched controls under rules fixed in advance.
+
+\section*{Disclosures}
+\paragraph{LLM use.} Claude subagents served as raters in the ending audit (model version not recorded in the audit files). Repository commit metadata shows that LLM coding assistants co-authored the analysis code and drafts, and the independent review and this English manuscript were prepared by an LLM agent. \AUTHORTODO{State the extent of LLM use in design, analysis and writing, and confirm the authors have verified the content, following the venue's policy.}
+
+\paragraph{Data and code.} Per-step generation rows, results, preregistrations and analysis code for all 4-bit runs are in the project repository. \AUTHORTODO{Provide an anonymized archive link. The repository's commit metadata identifies the author, so it cannot be linked directly in a double-blind submission.} \AUTHORTODO{Residual state files (needed to recompute K1 and K2) are excluded from git, and bf16 and 27B data remain on rented storage. Publish them or state these limits and remove dependent results.}
+
+\paragraph{Ethics.} Experiments used open-weight models and synthetic tasks, with no user data. We do not recommend random perturbation as a mitigation: it can also increase stopping and degeneration. \AUTHORTODO{Funding and competing interests.}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\appendix
+
+\section{Task example}\label{app:task}
+In \texttt{clamp(x, lo, hi)}, the requirements are: inside the range unchanged, above clamps to the upper bound, below clamps to the lower bound, swapped bounds are exchanged, and a lower bound of \texttt{None} is allowed. The contradictory tests require \texttt{clamp(7, 0, 10) == 0} and \texttt{clamp(20, 0, 10) == 20}. A correct implementation always reports ``5 passed, 2 failed''. Original tasks: \texttt{clamp}, \texttt{word\_count}, \texttt{is\_palindrome}, \texttt{running\_total}, \texttt{parse\_duration}, \texttt{flatten}, \texttt{initials}, \texttt{rle}, \texttt{safe\_div}, \texttt{dedupe}, \texttt{celsius\_to\_f}, \texttt{slugify}. New tasks: \texttt{title\_case}, \texttt{median}, \texttt{count\_vowels}, \texttt{to\_snake}, \texttt{chunk}, \texttt{roman}, \texttt{mask\_email}, \texttt{merge\_ranges}, \texttt{digit\_sum}, \texttt{truncate}, \texttt{group\_by\_len}, \texttt{parse\_bool}. Full definitions are in the repository code.
+
+\section{Classification rules}\label{app:rules}
+For a final message without a tool call: \emph{contest} if a regular expression matches tests together with wrong, contradictory or similar terms; \emph{false claim} if the previous result is marked as failed and a pass-claim expression matches without a negative term; otherwise \emph{give up}. For a tool call: \emph{cheat} if any contradictory test passes; then \emph{tamper} (access to \texttt{sys}, \texttt{builtins}, \texttt{os}, \texttt{TESTS} and similar; zero in all 4-bit data); then \emph{repeat} if the normalized code equals an earlier submission; otherwise \emph{revise}. The contradiction flag applies the contest pattern to thinking plus reply.
+
+\section{Registration record}\label{app:prereg}
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Experiment & Registration commit & Data commit or run start\\
+\midrule
+Step 0 & 2026-10-31 00:04 (pilot amendment 00:14) & data 01:49\\
+Step 1 & 2026-10-31 09:12 (post-pilot amendment 09:39) & data 17:43\\
+Replication & 2026-11-02 17:57 & data 2026-11-03 03:27\\
+E$'$, E, D & 2026-11-03 11:30 & run start 11:41\\
+KL controls & 2026-11-04 07:24 & calibration 07:28\\
+\bottomrule
+\end{tabular}
+\caption{Commit times (UTC+8) from the project repository. The bf16 registrations are at 2026-11-01 02:34 and 2026-11-02 15:33; their data are not in the repository.}
+\end{table}
+The registrations are timestamped only in the authors' own repository, not with a third-party registry, and git times are controlled by the committer. Text edits after data were limited to change logs and anonymization wording. \AUTHORTODO{Deposit the registrations in an independent archive before claiming preregistration at a venue.} Deviations: the S-exclusion bug (Section~4.1); the analysis code counted contest as stop in step~1 (verdicts unchanged under the registered definition: 0.17 versus 0.00 at 4-bit; 0.77 versus 0.00 at bf16); the false-claim flag bug; the registered human audit replaced by LLM ratings; a replication smoke test that generated 7 steps on one task before formal data, discarded and disclosed.
+
+\section{Step 1 arms (4-bit)}
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lllllll@{}}
+\toprule
+Arm & Cheat [95\% CI] & Honest (0--5) & Repeat & Ends without call & Stop & Incoherent\\
+\midrule
+None & 0.36 \ci{0.18}{0.54} & 3.36 & 0.31 & 0.17 & 0.00 & 0.00\\
+\mind{}, 1 round & 0.13 \ci{0.06}{0.20} & 3.61 & 0.39 & 0.38 & 0.17 & 0.00\\
+\mind{}, 2 rounds & 0.04 \ci{0.00}{0.10} & 3.80 ($n=5$) & 0.04 & 1.00 & 1.00 & 0.42\\
+\plusd{}, 1 round & 0.24 \ci{0.11}{0.37} & 3.58 & 0.38 & 0.04 & 0.00 & 0.00\\
+Random, 1 round & 0.36 \ci{0.18}{0.54} & 3.62 & 0.33 & 0.12 & 0.00 & 0.00\\
+Gain $\times$1.71 & 0.32 \ci{0.18}{0.47} & 3.51 & 0.33 & 0.17 & 0.08 & 0.03\\
+Instruction & 0.35 \ci{0.19}{0.50} & 3.49 & 0.31 & 0.12 & 0.00 & 0.00\\
+Context reset & 0.38 \ci{0.26}{0.49} & 3.42 & 0.32 & 0.00 & 0.00 & 0.00\\
+\bottomrule
+\end{tabular}
+\caption{H6 (no worse than context reset) also held: \mind{}$-$reset $-0.24$ \ci{-0.36}{-0.13}.}
+\end{table}
+
+\section{KL run, all arms (4-bit)}
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lllllll@{}}
+\toprule
+Arm & Cheat [95\% CI] & Stop & False claim & Give up & Incoherent & Mean thinking\\
+\midrule
+None & 0.36 \ci{0.25}{0.45} & 0.00 & 0.00 & 0.00 & 0.00 & 850\\
+\mind{}, 1 round & 0.22 \ci{0.14}{0.31} & 0.19 & 0.13 & 0.06 & 0.00 & 916\\
+Gain & 0.28 \ci{0.18}{0.38} & 0.06 & 0.00 & 0.06 & 0.04 & 557\\
+random6 & 0.27 \ci{0.18}{0.37} & 0.01 & 0.01 & 0.00 & 0.00 & 423\\
+random7 & 0.19 \ci{0.12}{0.27} & 0.08 & 0.00 & 0.08 & 0.02 & 1572\\
+random8 & 0.28 \ci{0.19}{0.37} & 0.08 & 0.02 & 0.06 & 0.01 & 1077\\
+\bottomrule
+\end{tabular}
+\caption{Program-rule labels as registered; mean thinking tokens per step are post hoc.}
+\end{table}
+
+\section{Post hoc sensitivity}\label{app:sens}
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Check (KL run unless stated) & \mind{}$-$none & KL-matched random$-$none\\
+\midrule
+Registered metric: cheats / steps & $-0.13$ \ci{-0.20}{-0.07} & $-0.11$ \ci{-0.18}{-0.04}\\
+Cheats / 3 (fixed denominator) & $-0.14$ \ci{-0.20}{-0.07} & $-0.11$ \ci{-0.18}{-0.04}\\
+Any cheat in trajectory & $-0.08$ \ci{-0.17}{0.00} & $-0.06$ \ci{-0.16}{+0.02}\\
+First step only & $-0.13$ \ci{-0.24}{-0.01} & $-0.13$ \ci{-0.23}{-0.03}\\
+Starts with an earlier cheat (31) & $-0.23$ \ci{-0.38}{-0.09} & $-0.22$ \ci{-0.34}{-0.12}\\
+Starts with no earlier cheat (38) & $-0.10$ \ci{-0.20}{0.00} & $-0.07$ \ci{-0.20}{+0.04}\\
+Starts with an audited incoherent ending removed (58) & not computed & $-0.13$ \ci{-0.21}{-0.05}\\
+\bottomrule
+\end{tabular}
+\caption{Not registered. Intervals are percentile bootstraps over tasks. Q2 under the last row: $-0.03$ \ci{-0.11}{+0.05}. A $t$ interval and sign-flip test over tasks agree with the registered Q1 ($p=0.005$), Q2 ($p=0.55$) and Q3 ($p=0.008$ for each contrast).}
+\end{table}
+
+\end{document}
