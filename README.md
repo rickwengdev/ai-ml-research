@@ -39,5 +39,6 @@ CUDA 機器用 `requirements-torch.txt`（`research/cloud/bootstrap.sh`）。`ju
 - **不是逐位元相同的重跑**：當時的提示裡是真名，這裡是 `[persona]`。`vectors/*.npz` 是當時算出來的原檔；`extract.py` 的提示也做了同樣的替換，重新抽取會有微小差異。
 - commit 雜湊都變了，紀錄裡提到的舊雜湊對不上；commit 時間是作者自己記的，**不能單獨當作預先登記早於資料的第三方證明**。
 - 從生成文字重算的指標可能因為名字替換而有微小差異。未改動的版本保留在不公開的 repo。
+- 2026-11-05 補做替換：舊研究的 4 個資料檔（2026-10-26-e2e3、10-27-controls、10-27-methods、10-27-receptors）有 207 處名字先前漏掉，已替換並改寫 git 歷史，commit 雜湊因此全部改變；文件裡提到的舊雜湊可用 `research/commit-map-2026-11-05.txt` 對照新雜湊。author date 和 committer date 都沒有變。
 - 較早的 commit 裡，三個 `setup.json` 的系統提示是 `[withheld: persona system prompt]`；最新版已經放回匿名化後的全文。
 - 測試題和狀態情境的產生程式沒有公開，這裡放的是產生好的結果。
