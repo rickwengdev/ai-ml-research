@@ -217,6 +217,21 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li><strong>Chen, <em>Goal-Drift Probes</em>, ICML 2026 Agents-in-the-Wild workshop。</strong> Qwen2.5-7B ReAct／ALFWorld，線性探針提前三步預測失敗 AUC 0.989，線性移除步數資訊後仍 ≥ 0.939，各失敗模式方向 cos ≥ 0.79（單一「快失敗」軸）。只監測、不操縱。我們的「投影追蹤失敗輪數不是 FAILED 行數」要用同樣的 step-index residualization 補一次。</li>
 <li><strong>2604.01476 <em>From Rebound to Remedy</em>、2609.19101（監測）</strong>：主張訓練期懲罰比生成期操縱穩；生成期操縱是比較點。2608.29460：提供「升級通道」+ 反作弊政策把八個前沿模型的作弊從 23.6% 降到 5.3%（非操縱的對照，和我們的「質疑並停下」讀數對得上）。</li>
 </ul>
+<h2 id="追加-2026-11-05-操控效果的專屬性-隨機方向與-kl-配對的對照">追加 2026-11-05：操控效果的專屬性（隨機方向與 KL 配對的對照）</h2>
+<p>背景：9B 4-bit 的 E′1、E1、Q2 都不成立，Q1 成立——作弊的減少是擾動大小造成的，不是方向特有的（<code>experiment-log.md</code> 2026-11-05）。查有沒有人做過同樣的主張。結論：沒有人在代理作弊上做過 KL 配對的隨機方向，但構成這個主張的每一塊都有人碰過，方向一致。</p>
+<ul>
+<li><strong>Malla, Choi &amp; Choi, <em>Steering Interference Reflects the Model's Defaults, Not the Behavior Directions</em>, 2609.06951（2026-09）。</strong> 最接近。10 個指令模型、24 種行為，LLM 評審。24 條「沒有行為內容」的隨機方向，只配對加進殘差流的範數，推出來的行為和真實操控方向推出來的排序相同（等級相關 0.90）：模型被任何擾動推離訓練分布後，都退回同一小組預設（拒絕、諂媚、詩化）；隨機方向還會壓低七種行為（含信心、冗長）。解讀：「a steer is a perturbation whose endpoint the model fixes」，該量的是模型的預設集，不是方向的幾何。10B 以下最強，大模型變弱。他們沒做代理、沒做作弊、沒配 KL；我們的「作弊是容易被擾動打斷的行為」是同一論點在代理作弊上的事先登記檢驗。</li>
+<li><strong>Luo, Liang &amp; Xuan, <em>SteerCheck: Attribution Specificity and Alignment Leakage in Activation-Steering Audits</em>, 2608.24335（2026-08）。</strong> 唯一一篇用 <strong>KL 配對</strong>的隨機方向當對照：係數以 off-target KL 預算 κ ∈ [0.09, 0.11]（16 token）用中性提示庫校準，行為分數不參與調參；三種零族各 320 條（等向高斯、前 8 個 PCA 子空間內的隨機、對比對符號隨機化），Holm 校正 α = 0.01，平均和下尾兩個統計量都要過，事先凍結判定規則。結果：Qwen3-14B 第 28 層的反諂媚方向贏過等向和 PCA 零族，沒贏過符號隨機化族，完整門不過；「失敗是 failure to establish，不是沒有效果」。一種行為、一層、CAA。我們的 KL 配對設計和它幾乎同一個 κ；差別是我們只有等向零族、三條而不是 320 條，但在代理任務上。論文的限制要承認沒做 PCA 子空間和符號隨機化族。</li>
+<li><strong><em>The Rogue Scalpel: Activation Steering Compromises LLM Safety</em>, 2509.22067（2025-09）。</strong> 隨機方向就把有害順從從 0% 推到 1–13%，良性 SAE 特徵也一樣，20 條隨機向量組合成通用越獄。「precise control over model internals does not guarantee precise control over model behavior」。方向反了（壞行為增加），邏輯一樣：隨機擾動就改變安全相關行為。</li>
+<li><strong><em>Steering Vectors for Competing Ethical Frameworks Are Interchangeable</em>, 2610.19359（2026-10）。</strong> 「random baselines show that a vector changes behaviour but cannot show that it acts through the named concept」。提出 competing-target test：和用同樣方法做的相競目標向量比，等價檢定。康德／效益兩條向量互換效果一樣。對我們：贏過隨機不等於專屬，要和「相競的」方向比——我們的增益臂和 KL 配對隨機就是這個角色。</li>
+<li><strong>LessWrong，<em>Reproducing steering against evaluation awareness in a large open-weight model</em>（2026）。</strong> GLM-5 上複製 Anthropic system card 的評估意識操控：無關對比對（「書放上層／下層」）做的對照向量，失調行為 80%，比設計的評估意識向量（50–60%）還大。作者結論：無關對比對不是合適的對照；Jack Lindsey 回應這正好不符合他的「有效果」判準。真正隨機的向量沒測。同型的發現。</li>
+<li><strong><em>Behavioural Analysis of Alignment Faking</em>, 2605.27681。</strong> 同範數隨機單位向量的零分布：目標方向在 α 325–525 高出 0.68–0.98σ，在 125–225 不可分。專屬性隨劑量變。</li>
+<li><strong>2606.29522 <em>When Does Activation Steering Change What a Model Computes From?</em></strong> 等範數比較方向：Llama 上目標方向明顯專屬，Qwen 上有結構的比較方向追平或贏過目標方向，隨機較弱；專屬性是「model-dependent」。操控向量範數是自然變化的 77／26 倍。</li>
+<li><strong>Hua, Qin, Marks &amp; Nanda, <em>Steering Evaluation-Aware LMs to Act Like They Are Deployed</em>, 2510.20487。</strong> 操控壓掉評估意識，摘要只有行為證據。「方向編碼信念」最接近的前例，但沒有信念層證據，沒有隨機對照。沒有人做過「操控讓模型以為測試通過」——我們的 Q3 是新的，所以人工稽核更必要。</li>
+<li><strong>Meek et al. 2610.29129 全文與附錄 E 再讀</strong>：對照只有未操控、spec 提示、正負號翻轉、各操控法互比；附錄 E 量的是 Mahalanobis 推離量，五條回放。<strong>沒有隨機方向、沒有範數或 KL 配對的對照</strong>。spec 提示本身就把作弊壓到 0.02，每臂 60 條。論文裡「他們沒有隨機方向和 KL 配對的對照」可以保留。</li>
+<li><strong>沒找到的</strong>：隨機活化擾動減少作弊或提高誠實的論文，一篇都沒有。噪音注入那條線（2502.03799，ICLR 2026）是拿活化噪音做幻覺偵測，不是矯正。</li>
+</ul>
+<p><strong>對論文的含意</strong>：主論點改寫成「方向編碼結果信念；作弊減少是擾動大小」，位置在 Malla 等（擾動退回預設）和 SteerCheck（KL 配對審核）之間：在 Meek 等人用操控當解方的代理作弊場景上，照 SteerCheck 的標準審核，方向沒有通過，通過的只有假宣稱。相關研究加 2609.06951、2608.24335、2509.22067、2610.19359、LessWrong 複製、2605.27681。</p>
 </article>
 </body>
 </html>
