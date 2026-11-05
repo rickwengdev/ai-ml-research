@@ -130,7 +130,7 @@ $PY research/experiments/pressure_klcontrols.py analyze --out $OUT
 $PY research/experiments/pressure_klcontrols.py klcheck --step0 $S0 --out $OUT
 ```
 
-在 Mac 上跑，模型在實驗自己的程序裡載入，不碰 1235，可中斷續跑。跑的時候 [persona] 要關著，中斷要記錄。
+在 Mac 上跑，模型在實驗自己的程序裡載入，不碰 1235，可中斷續跑。跑的時候角色要關著，中斷要記錄。
 
 ## 預估
 
