@@ -1,0 +1,9 @@
+{
+ "backend": "torch",
+ "model": "/workspace/models/Qwen3.5-9B",
+ "dtype": "bfloat16",
+ "engine": {
+  "prompt_store_gb": "auto",
+  "flash_linear_attention": true
+ }
+}

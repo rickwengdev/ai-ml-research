@@ -1,0 +1,9 @@
+{
+ "backend": "torch",
+ "model": "/workspace/models/gemma-4-31B-it",
+ "dtype": "bfloat16",
+ "engine": {
+  "prompt_store_gb": "auto",
+  "flash_linear_attention": true
+ }
+}

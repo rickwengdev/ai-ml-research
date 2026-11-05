@@ -2015,7 +2015,7 @@ FAILED test_large: clamp(20, 0, 10) -&gt; got 10, expected 20</code></pre>
 <li><strong>引擎版本</strong>：2026-11-02 起，解碼步不再複製 K/V（分組注意力直接相乘、KV 快取就地增長），只改浮點運算順序，讀提示與探針狀態不變。取樣器改為 <code>hash</code>：在前 1,024 個詞裡找核心集合，雜訊是每列（種子、步數、token）的計數雜湊；分布與原本的 <code>generator</code> 相同，隨機串流不同。每個資料夾沿用開始時的取樣器，記在 <code>run.json</code>；在本機小模型上驗證過等價（<code>research/cloud/README.md</code>）。</li>
 <li><strong>資料</strong>：<ul>
 <li>9B 4-bit 的資料在 <code>research/data/2026-10-31-pressure/</code>、<code>research/data/2026-11-01-pressure-steer/</code>、<code>research/data/2026-11-02-pressure-4bit-replication/</code>、<code>research/data/2026-11-03-pressure-4bit-controls/</code>（E′）、<code>research/data/2026-11-03-pressure-4bit-step2/</code>（E、D）；</li>
-<li>bf16 的資料留在租用機器的 <code>/vault</code>，各資料夾有 <code>run.json</code>，記錄引擎設定。</li>
+<li>bf16、27B、Gemma 的資料在 2026-11-05 從租用機器的 <code>/vault</code> 取回，結果檔在 <code>research/data/</code>；<code>states</code> 不進 git。各資料夾的 <code>run.json</code> 記錄引擎設定。</li>
 </ul>
 </li>
 <li><strong>完整紀錄</strong>：<code>research/experiment-log.md</code>。</li>
