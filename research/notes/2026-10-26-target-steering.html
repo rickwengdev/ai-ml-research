@@ -38,7 +38,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
 <li>日期：2026-10-26</li>
 <li>模型：<code>mlx-community/Qwen3.5-4B-MLX-4bit</code>（32 層，hidden 2560），Apple M1 Pro 16GB</li>
 <li>程式：<code>steering/steer.py</code>、<code>steering/extract.py</code>、<code>steering/sweep.py</code>；修正提交 <code>2838165</code></li>
-<li>原始資料：<a href="data/2026-10-26-target-steering/"><code>data/2026-10-26-target-steering/</code></a></li>
+<li>原始資料：<a href="../data/2026-10-26-target-steering/"><code>data/2026-10-26-target-steering/</code></a></li>
 </ul>
 <h2 id="1-問題">1. 問題</h2>
 <p>角色的內分泌狀態（六種神經化學物質）先投影成八個行為傾向，各在 −1～1 之間：能量、溫度、戒備、專注、玩心、耐心、主動、親近。每個傾向再沿一個控制向量加進模型中層的殘差流。提示裡不寫任何狀態文字。</p>

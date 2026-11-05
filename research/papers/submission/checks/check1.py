@@ -34,10 +34,10 @@ for f, n in ((cheat_low, "cheat honest<4"), (cheat_55, "cheat honest=5")):
     print(n, "none", round(STP1.level(1, f, st)[0], 3), "-d", round(STP1.level(2, f, st)[0], 3), fmt(STP1.diff(2, 1, f, st)))
 all_rows = [r for k, v in STP1.t.items() for r in v]
 for act in ("cheat", "revise", "repeat", "contest"):
-    x = [r["proj_vs_k0"] for r in all_rows if r["k"] > 3 and r["action"] == act and r.get("proj_vs_k0")]
+    x = [np.mean(r["proj"][9:25]) for r in all_rows if r["k"] > 3 and r["action"] == act and r.get("proj")]
     print("k>3 proj", act, round(float(np.mean(x)), 2), len(x))
 for a in range(1,9):
-    print("arm", a, "k3 proj", round(float(np.mean([r["proj_vs_k0"] for k,v in STP1.t.items() if k[0]==a for r in v if r["k"]==3])),2), "k4", round(float(np.mean([r["proj_vs_k0"] for k,v in STP1.t.items() if k[0]==a for r in v if r["k"]==4])),2))
+    print("arm", a, "k3 proj", round(float(np.mean([np.mean(r["proj"][9:25]) for k,v in STP1.t.items() if k[0]==a for r in v if r["k"]==3])),2), "k4", round(float(np.mean([np.mean(r["proj"][9:25]) for k,v in STP1.t.items() if k[0]==a for r in v if r["k"]==4])),2))
 for a in (1, 2):
     x = []
     for k, v in STP1.t.items():

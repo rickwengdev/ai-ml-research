@@ -10,7 +10,7 @@ research/
   experiment-log.md      實驗筆記，依時間排列；研究介面的「實驗」列表從這裡的 `## YYYY-MM-DD 標題` 段落切出來
   prereg/                預先登記（產生資料前定稿，之後的修改附日期列在文末）
   papers/                論文大綱與草稿（HTML）
-  notes/                 文獻、方向整理、數學、程式庫地圖、單一實驗的寫作（HTML）
+  notes/                 文獻、方向整理、數學、單一實驗的寫作（HTML）
   data/<日期>-<主題>/     歷次實驗的原始資料
   figures/               圖，以及產生它們的腳本
   experiments/           實驗腳本，多項研究共用，彼此會互相 import
@@ -71,7 +71,7 @@ services/model-server/.venv/bin/python research/experiments/<腳本>.py --help
 | [prereg-pressure-4bit-kl.md](prereg/prereg-pressure-4bit-kl.md) | 9B 4-bit 上 KL 相同的隨機方向：新種子，六臂，判定 Q1–Q3 |
 | **論文 `papers/`** | |
 | [paper-draft.html](papers/paper-draft.html) | paper 1 草稿：操控方法與對照（2026-10-31，數字已更正） |
-| [paper-pressure.html](papers/paper-pressure.html) | paper 2 草稿：不需行為標籤的失敗狀態操控（主論文；與 claude.ai 的文件同步） |
+| [paper-pressure.html](papers/paper-pressure.html) | paper 2 的歷史草稿，投稿版本是 `submission/main.tex` |
 | **筆記 `notes/`** | |
 | [math.html](notes/math.html) | 用到的數學 |
 | [math-endogenous.html](notes/math-endogenous.html) | 內生調節訊號：數學與實驗設計（修訂版） |
